@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:wght@400;500;600&display=swap');
+:root {
+  /* Overlay layers */
+  --z-overlay: 400;
+  --z-spotlight: 1000; /* Tutorial spotlights/guided help */
+  /* System layers */
+  --z-critical: 2000; /* Critical system notifications */
+  /* spacing */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+}
+:root {
+  --background:#0d1825; --foreground:#eaf1f8; --surface:#142336; --surface-foreground:#eaf1f8; --sidebar:#102033; --sidebar-foreground:#eaf1f8; --card:#182a3e; --card-foreground:#eef4fa; --popup:#192b40; --popup-foreground:#eef4fa;
+  --primary:#a9cfee; --primary-foreground:#102033; --secondary:#23384e; --secondary-foreground:#e8f0f8; --accent:#8dbadb; --accent-foreground:#0d1825; --muted:#23364a; --muted-foreground:#94a9bc; --success:#80bda9; --success-foreground:#0a2822; --error:#e7a5a8; --error-foreground:#421a20; --warning:#e1c38d; --warning-foreground:#3d2e13; --info:#a9cfee; --info-foreground:#0d1825; --info-hover:#bbdaf1; --info-active:#8bb4d4; --border:#31465b;
+  --font-family-base:'DM Sans',sans-serif; --font-family-display:'Newsreader',serif; --font-family-monospace:ui-monospace,monospace; --font-family-cursive:'Newsreader',serif;
+  --shadow:0 6px 22px rgba(0,0,0,.15); --shadow-md:0 10px 30px rgba(0,0,0,.2); --shadow-lg:0 18px 50px rgba(0,0,0,.25); --shadow-focus:0 0 0 3px rgba(169,207,238,.3); --radius-sm:7px; --radius:12px; --radius-md:16px; --radius-lg:20px; --radius-full:999px; --animation-duration-fast:120ms; --animation-duration-normal:220ms; --animation-duration-slow:380ms; --chart-color-1:#a9cfee; --chart-color-2:#80bda9; --chart-color-3:#d8bc8b; --chart-color-4:#b6a6d7; --chart-color-5:#8b9daf;
+}
+.dark {}
+*{box-sizing:border-box}body{margin:0;min-width:320px;background:#0d1825;color:#eaf1f8;font-family:'DM Sans',sans-serif}button,input{font:inherit}button{-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #a9cfee;outline-offset:2px}
