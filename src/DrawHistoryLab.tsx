@@ -22,7 +22,7 @@ export default function DrawHistoryLab({game}:{game:string}){
  <div style={{fontSize:10,color:'#a9cfee',letterSpacing:2}}>OFFICIAL DRAW HISTORY</div><strong style={{fontSize:18}}>{game} Lab</strong>
  {errors[game]?<p role="alert" style={{color:'#ffd1c5'}}>The official historical dataset could not load ({errors[game]}). No substitute numbers are shown.</p>:!data?<p>Loading verified official archive…</p>:<>
  <p style={{fontSize:12,color:'#bed0df',lineHeight:1.5,margin:0}}>{data.count.toLocaleString()} verified drawings · {data.first} to {data.last}. Only the current number format (from {data.ruleStart}) is compared.</p>
- <HistoricalEstimate draws={data.draws} max={data.max} bonusMax={data.bonusMax} pickCount={5} game={game}/>
+ <HistoricalEstimate draws={data.draws} max={data.max} bonusMax={data.bonusMax} pickCount={5} game={game} rangeStart={data.draws.length-draws.length} trainingWindow={range==="30"?30:100}/>
  <label style={{display:'grid',gap:5,fontSize:12,color:'#a9cfee'}}>Historical range<select aria-label="Historical range" value={range} onChange={e=>{setRange(e.target.value);setExpanded(false)}} style={{padding:12,borderRadius:9,background:'#112033',color:'#f2f7fb',border:'1px solid #50647a',fontSize:15}}>{ranges.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
  <small style={{color:'#b3c9d9'}}>{draws.length.toLocaleString()} drawings in selected range</small>
  <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{frequent.map(v=><div key={v.n} style={{border:'1px solid #506980',borderRadius:9,padding:10,minWidth:45,textAlign:'center'}}><b>{v.n}</b><div style={{fontSize:10,color:'#a9cfee'}}>{v.hits}×</div></div>)}</div>
