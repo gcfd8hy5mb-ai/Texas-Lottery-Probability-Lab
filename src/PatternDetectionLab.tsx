@@ -109,20 +109,61 @@ function runPatterns(all:Draw[],rule:Rule,window:number):{cards:Evidence[];train
   definition:'Most frequent odd/even split in discovery, verified against a new period. Digit games use 0–9 with replacement.',status:classify(oddHits/newer.length,oddExpected,newer.length)});
  return {cards,training:older.length,validation:newer.length,from:subset[0].date,to:subset[subset.length-1].date};
 }
+type PeriodResult={from:string;to:string;cards:Evidence[];training:number;validation:number};
+function runMultiPeriod(draws:Draw[],rule:Rule,size:number):PeriodResult[]{
+ // Complete, non-overlapping periods only. Within each period, older draws discover
+ // a candidate and newer draws validate it. Never select the reported winner by holdout fit.
+ const periods=Math.min(5,Math.floor(draws.length/size));
+ const start=draws.length-periods*size;
+ const results:PeriodResult[]=[];
+ for(let i=0;i<periods;i++){
+  const sample=draws.slice(start+i*size,start+(i+1)*size);
+  const scan=runPatterns(sample,rule,sample.length);
+  results.push({from:scan.from,to:scan.to,cards:scan.cards,training:scan.training,validation:scan.validation});
+ }
+ return results;
+}
 export default function PatternDetectionLab({game}:{game:string}){
  const rule=rules[game];const [archive,setArchive]=useState<Archive|null>(null),[error,setError]=useState('');
- const [windowSize,setWindowSize]=useState('250'),[show,setShow]=useState(false);
- useEffect(()=>{let alive=true;setArchive(null);setError('');setShow(false);
+ const [windowSize,setWindowSize]=useState('250'),[show,setShow]=useState(false),[multiShow,setMultiShow]=useState(false);
+ useEffect(()=>{let alive=true;setArchive(null);setError('');setShow(false);setMultiShow(false);
  fetch(import.meta.env.BASE_URL+'data/'+rule.file,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then((data:Archive)=>{if(!Array.isArray(data.draws)||data.draws.length<30)throw Error('Insufficient historical records');if(alive)setArchive(data);}).catch(e=>{if(alive)setError(String(e.message||e));});return()=>{alive=false};},[game,rule.file]);
  const available=archive?.draws.length||0;
  const choices=[30,50,100,250,500,1000,2000].filter(n=>n<=available);
  const selected=choices.includes(Number(windowSize))?Number(windowSize):choices[choices.length-1];
  const results=useMemo(()=>show&&archive?runPatterns(archive.draws,rule,selected):null,[show,archive,rule,selected]);
+ const repeat=useMemo(()=>multiShow&&archive?runMultiPeriod(archive.draws,rule,selected):[],[multiShow,archive,rule,selected]);
  return <section style={{background:'#192b3d',border:'1px solid #456179',borderRadius:15,padding:15,display:'grid',gap:12}}>
   <div><div style={{fontSize:10,letterSpacing:2,color:'#a7d5f6'}}>PATTERN DETECTION ENGINE</div><h2 style={{fontSize:18,margin:'6px 0'}}>Are the patterns repeatable?</h2><p style={{fontSize:12,color:'#bfd0de',lineHeight:1.55,margin:0}}>Detect unusual historical patterns and test them against newer results they were not selected from.</p></div>
   {error?<p style={{fontSize:12,color:'#f8d0c8'}}>Unavailable: {error}</p>:!archive?<p style={{fontSize:12}}>Loading official winning numbers…</p>:<>
-   <label style={{fontSize:12,color:'#b8d8ee',display:'grid',gap:4}}>Drawings to investigate<select value={selected} onChange={e=>{setWindowSize(e.target.value);setShow(false)}} style={{background:'#11273b',border:'1px solid #678098',borderRadius:8,padding:10,color:'#eff7ff',fontSize:14}}>{choices.map(n=><option value={n} key={n}>{n.toLocaleString()} drawings</option>)}</select></label>
+   <label style={{fontSize:12,color:'#b8d8ee',display:'grid',gap:4}}>Drawings to investigate<select value={selected} onChange={e=>{setWindowSize(e.target.value);setShow(false);setMultiShow(false)}} style={{background:'#11273b',border:'1px solid #678098',borderRadius:8,padding:10,color:'#eff7ff',fontSize:14}}>{choices.map(n=><option value={n} key={n}>{n.toLocaleString()} drawings</option>)}</select></label>
    <button style={{background:'#b5d7f2',border:0,borderRadius:9,padding:12,color:'#112638',fontWeight:750}} onClick={()=>setShow(true)}>Detect & validate patterns</button>
+   <div style={{display:'grid',gap:7,background:'#112638',border:'1px solid #4e6b81',borderRadius:10,padding:12}}>
+    <strong style={{color:'#c9e5f7',fontSize:13}}>Multi-period pattern validation</strong>
+    <small style={{color:'#bfd1df',lineHeight:1.6}}>Repeat the discovery-and-validation test across up to five separate historical periods of {selected.toLocaleString()} drawings each. Every period uses its own older results for discovery and newer results for verification.</small>
+    <button onClick={()=>setMultiShow(true)} style={{padding:11,borderRadius:9,border:'1px solid #7faac8',background:'#1a3b55',color:'#e7f5ff',fontWeight:700}}>Test patterns across {Math.min(5,Math.floor(available/selected))} periods</button>
+    {repeat.length>0&&<>
+      <small style={{color:'#bfd4e5'}}>{repeat.length} non-overlapping periods · {repeat.reduce((n,p)=>n+p.training,0)} discovery drawings · {repeat.reduce((n,p)=>n+p.validation,0)} validation drawings</small>
+      {['Number frequency','Repeating number pair','Overdue gap','Odd/even balance'].map(title=>{
+        const cards=repeat.map(p=>p.cards.find(c=>c.title===title)).filter((v):v is Evidence=>!!v);
+        const above=cards.filter(c=>c.validation>c.expected).length;
+        const standout=cards.filter(c=>c.status==='Above chance expectation in unseen draws').length;
+        const stablePattern=new Set(cards.map(c=>c.pattern)).size===1;
+        return <div key={title} style={{borderTop:'1px solid #46637b',paddingTop:9,display:'grid',gap:5}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}><b style={{fontSize:12}}>{title}</b><b style={{fontSize:12,color:'#c3e2f6'}}>{above}/{cards.length} above expectation</b></div>
+          <small style={{color:'#bacddd'}}>Unseen results exceeded the random expectation in {above} of {cards.length} periods; {standout} stood out under an approximate two-standard-error check.</small>
+          <small style={{color:'#a8c3d6'}}>{stablePattern?'Same pattern selected in all periods':'The selected numbers or pattern details varied across periods'}</small>
+        </div>;
+      })}
+      <details><summary style={{cursor:'pointer',color:'#c3dff2',fontSize:12}}>View each period and pattern</summary>
+      <div style={{display:'grid',gap:9,marginTop:10}}>{repeat.map((p,i)=><div key={p.from} style={{border:'1px solid #49657b',borderRadius:8,padding:9,display:'grid',gap:5}}>
+        <b style={{fontSize:12}}>Period {i+1}: {p.from} – {p.to}</b>
+        <small style={{color:'#aec7d9'}}>{p.training} discovery / {p.validation} unseen drawings</small>
+        {p.cards.map(card=><div key={card.title} style={{fontSize:11,color:'#c4d6e3',lineHeight:1.5}}><b>{card.title}:</b> {card.pattern} · unseen {percent(card.validation)} vs expected {percent(card.expected)} ({card.matches}/{card.tests})</div>)}
+      </div>)}</div></details>
+      <small style={{color:'#b6cad9',lineHeight:1.6}}>These are exploratory, uncorrected comparisons of changing pattern candidates, not independent proof that any fixed combination predicts future drawings. An above-expectation result can happen by chance. Discovery and validation sets do not overlap within or between periods.</small>
+    </>}
+   </div>
    {results&&<div style={{display:'grid',gap:10}}>
     <small style={{color:'#adc7db'}}>Period: {results.from} to {results.to} · Discovery: {results.training} older drawings · Holdout: {results.validation} newer drawings{rule.session?' · '+rule.session+' session only':''}</small>
     {results.cards.map(card=><div key={card.title} style={{border:'1px solid #4e6b81',background:'#112638',padding:12,borderRadius:11,display:'grid',gap:7}}>
