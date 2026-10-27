@@ -1,8 +1,8 @@
 import React,{useMemo} from 'react';
 type Draw={date:string;nums:number[];bonus?:number};
-type Props={draws:Draw[];max:number;pickCount:number;bonusMax?:number;game:string};
+type Props={draws:Draw[];max:number;pickCount:number;bonusMax?:number;game:string;rangeStart?:number;trainingWindow?:number};
 type HitCounts={two:number;three:number;bonus:number;jackpot:number};
-const RANDOM_TRIALS=64;
+const RANDOM_TRIALS=12;
 function pick(history:Draw[],max:number,count:number,bonusMax?:number){
  const frequency=new Array(max+1).fill(0);
  const bonusFrequency=new Array((bonusMax||0)+1).fill(0);
@@ -32,16 +32,16 @@ function uncertainty(modelRate:number,randomRate:number,n:number){
  const se=Math.sqrt((modelRate*(1-modelRate)+randomRate*(1-randomRate))/n);
  return Math.abs(modelRate-randomRate)<=1.96*se;
 }
-export default function HistoricalEstimate({draws,max,pickCount,bonusMax,game}:Props){
+export default function HistoricalEstimate({draws,max,pickCount,bonusMax,game,rangeStart=100,trainingWindow=100}:Props){
  const analysis=useMemo(()=>{
-  if(draws.length<130)return null;
-  const choice=pick(draws.slice(-100),max,pickCount,bonusMax);
-  const first=Math.max(100,draws.length-500);
+  if(draws.length<trainingWindow+1)return null;
+  const choice=pick(draws.slice(-trainingWindow),max,pickCount,bonusMax);
+  const first=Math.max(trainingWindow,Math.min(draws.length-1,rangeStart));
   const n=draws.length-first;
   const model:HitCounts={two:0,three:0,bonus:0,jackpot:0};
   const random:HitCounts={two:0,three:0,bonus:0,jackpot:0};
   for(let i=first;i<draws.length;i++){
-   const past=draws.slice(i-100,i);
+   const past=draws.slice(i-trainingWindow,i);
    const actual=draws[i];
    addHits(model,pick(past,max,pickCount,bonusMax),actual,pickCount,!!bonusMax);
    for(let rep=0;rep<RANDOM_TRIALS;rep++){
@@ -51,15 +51,15 @@ export default function HistoricalEstimate({draws,max,pickCount,bonusMax,game}:P
    }
   }
   return {choice,n,model,random,randomN:n*RANDOM_TRIALS};
- },[draws,max,pickCount,bonusMax]);
- if(!analysis)return <p style={{color:'#b9cddd',fontSize:12}}>At least 130 compatible drawings are needed for a historical performance comparison.</p>;
+ },[draws,max,pickCount,bonusMax,rangeStart,trainingWindow]);
+ if(!analysis)return <p style={{color:'#b9cddd',fontSize:12}}>Additional compatible drawings are needed for a historical performance comparison.</p>;
  const {choice,n,model,random,randomN}=analysis;
  const rows:[string,keyof HitCounts][]=[['2+ main matches','two'],['3+ main matches','three'],...(bonusMax?[['Bonus ball match','bonus'] as [string,keyof HitCounts]]:[])];
  const meaningful=rows.some(([,key])=>!uncertainty(model[key]/n,random[key]/randomN,n));
  return <div style={{background:'#112236',border:'1px solid #7596b3',borderRadius:12,padding:14,display:'grid',gap:11}}>
-  <div style={{fontSize:11,fontWeight:750,letterSpacing:1.2,color:'#b6daf4'}}>MODEL PICK · LATEST 100 DRAWINGS</div>
+  <div style={{fontSize:11,fontWeight:750,letterSpacing:1.2,color:'#b6daf4'}}>MODEL PICK · LATEST {trainingWindow} DRAWINGS</div>
   <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{choice.main.map(value=><b key={value} style={{border:'1px solid #88b5d6',background:'#233f56',borderRadius:40,minWidth:32,padding:'9px 7px',textAlign:'center'}}>{value}</b>)}{choice.bonus!==undefined&&<><span style={{color:'#a5b8c8'}}>+</span><b style={{border:'1px solid #d5aa81',background:'#56402a',borderRadius:40,padding:'9px 11px'}}>{choice.bonus}</b></>}</div>
-  <p style={{fontSize:12,color:'#c0d0de',lineHeight:1.55,margin:0}}>Selected from the most frequent numbers across the latest 100 {game} drawings. Compare how this selection <b>method</b> performed in earlier walk-forward tests against random tickets tested on exactly the same draws.</p>
+  <p style={{fontSize:12,color:'#c0d0de',lineHeight:1.55,margin:0}}>Selected from the most frequent numbers across the latest {trainingWindow} {game} drawings. Compare how this selection <b>method</b> performed in earlier walk-forward tests against random tickets tested on exactly the same draws.</p>
   <div style={{fontSize:11,fontWeight:700,color:'#b6daf4'}}>MODEL VS RANDOM · {n} HOLDOUT DRAWINGS</div>
   <div style={{overflowX:'auto'}}>
    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,textAlign:'left'}}>
@@ -70,12 +70,12 @@ export default function HistoricalEstimate({draws,max,pickCount,bonusMax,game}:P
     })}</tbody>
    </table>
   </div>
-  <p style={{fontSize:11,color:'#b3c9da',lineHeight:1.55,margin:0}}>{meaningful?'One or more historical differences exceed a rough statistical-noise threshold, but this is not evidence of predictive advantage; retesting on future draws is required.':'Observed differences are within a rough statistical-noise threshold; no reliable model advantage is demonstrated.'}</p>
+  <p style={{fontSize:11,color:'#b3c9da',lineHeight:1.55,margin:0}}>{meaningful?'One or more historical differences exceed an approximate sampling-error threshold, but this is not evidence of predictive advantage; retesting on future draws is required.':'Observed differences are within an approximate sampling-error threshold; no reliable model advantage is demonstrated.'}</p>
   <div style={{borderTop:'1px solid #38516a',paddingTop:10,display:'grid',gap:5}}>
    <b style={{fontSize:12,color:'#b9d9ec'}}>Exact jackpot matches in backtesting</b>
    <span style={{fontSize:12}}>Model: {model.jackpot} of {n} draws · Random: {random.jackpot} of {randomN.toLocaleString()} simulations</span>
    <small style={{color:'#b6c8d8'}}>Jackpot wins are too rare for these samples to estimate the future jackpot probability. Zero observed jackpots does not mean zero probability.</small>
   </div>
-  <small style={{fontSize:11,color:'#b6c8d8',lineHeight:1.6}}>Each model pick uses only the previous 100 draws. The random baseline uses {RANDOM_TRIALS} reproducible, independently shuffled combinations per draw ({randomN.toLocaleString()} simulations). “pp” means percentage points. This is retrospective model performance, not a higher chance of winning for the displayed numbers. The noise check is approximate and not a formal significance test.</small>
+  <small style={{fontSize:11,color:'#b6c8d8',lineHeight:1.6}}>Each model pick uses only the previous {trainingWindow} draws. The random baseline uses {RANDOM_TRIALS} reproducible, independently shuffled combinations per draw ({randomN.toLocaleString()} simulations). “pp” means percentage points. This is retrospective model performance, not a higher chance of winning for the displayed numbers. The noise check is approximate and not a formal significance test.</small>
  </div>;
 }
