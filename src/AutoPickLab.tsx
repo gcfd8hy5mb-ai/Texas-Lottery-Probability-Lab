@@ -50,6 +50,15 @@ export default function AutoPickLab({games,onSave}:{games:Game[];onSave:(game:st
  useEffect(()=>{let active=true;setLoading(true);setData([]);setResult(null);setError('');
  fetch(import.meta.env.BASE_URL+'data/'+files[game],{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('History file unavailable');return r.json()}).then(v=>{if(active){if(!Array.isArray(v.draws)||v.draws.length<50)throw Error('Not enough valid drawings');setData(v.draws);setLoading(false);}}).catch(e=>{if(active){setError(String(e.message||e));setLoading(false);}});return()=>{active=false;};},[game]);
  const counts=[100,250,500,1000,2000].filter(n=>n<=data.length),chosen=counts.includes(Number(window))?Number(window):counts[counts.length-1]||0;
+ const comboOptions=g.ordered?[Math.pow(10,g.count)]:[1000,5000,10000,25000,50000,100000];
+ const requestedCount=g.ordered?Math.pow(10,g.count):Number(size);
+ function selectGame(name:string){
+  if(running||name===game)return;
+  setGame(name);setResult(null);setProgress(0);setDetail('picks');setStage('');setError('');
+  // Draw options are re-evaluated from each game's verified historical archive.
+  setWindow('500');
+  setSize('10000');
+ }
  async function run(){
   if(running||loading||!chosen)return;
   setRunning(true);setResult(null);setProgress(0);setDetail('picks');
@@ -86,7 +95,7 @@ export default function AutoPickLab({games,onSave}:{games:Game[];onSave:(game:st
    const seen=new Set<string>(),top:Candidate[]=[];
    const requested=g.ordered?Math.pow(10,g.count):Math.min(100000,Number(size));
    const limit=requested;
-   const quota=Math.min(requested,10000);
+   // Keep the ordered games exhaustive; larger games use the selected search limit.
    for(let i=0;i<limit;){
     const end=Math.min(i+200,limit);
     while(i<end){
@@ -128,18 +137,28 @@ export default function AutoPickLab({games,onSave}:{games:Game[];onSave:(game:st
  }
  const tabButton=(id:'picks'|'patterns'|'tests',title:string)=><button onClick={()=>setDetail(id)} style={{border:'none',borderRadius:8,padding:'9px 7px',fontSize:12,background:detail===id?'#a9cfee':'#14283a',color:detail===id?'#102033':light,fontWeight:detail===id?700:500}}>{title}</button>;
  return <div style={{display:'grid',gap:12}}>
+  <div style={panel}>
+   <b>1. Choose your game</b>
+   <div role="group" aria-label="Choose lottery for Auto Pick" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>
+    {games.map(item=><button key={item.name} type="button" aria-pressed={game===item.name} disabled={running} onClick={()=>selectGame(item.name)} style={{background:game===item.name?'#29475f':'#112537',border:'1px solid '+(game===item.name?'#acd4f0':'#476075'),borderRadius:9,padding:'11px 8px',color:'#e9f4fb',minHeight:56,fontSize:12,fontWeight:game===item.name?750:500,textAlign:'left',display:'grid',gap:4,opacity:running&&game!==item.name?.55:1}}>
+      <span>{game===item.name?'✓ ':''}{item.name}</span>
+      <span style={{fontSize:10,color:'#a9c9df'}}>{item.count}{item.ordered?' ordered digits':' numbers'}{item.bonusMax?' + bonus':''}</span>
+    </button>)}
+   </div>
+   <small style={{color:'#aecce0'}}>Selected: <b style={{color:'#e5f4ff'}}>{game}</b>. The settings and full test below apply only to this game.</small>
+  </div>
   {!result&&!running&&<><div style={{...panel,background:'linear-gradient(130deg,#233c53,#192b3d)',borderColor:'#65849e'}}>
    <div style={{fontSize:11,letterSpacing:1.1,color:'#b3d8ef'}}>✦ COMPLETE ANALYSIS & AUTO PICK</div>
    <strong style={{fontSize:19}}>All your lottery tests. One button.</strong>
    <p style={{fontSize:12,color:'#c6d8e5',lineHeight:1.65,margin:0}}>Scan the historical patterns, validate strategies on later drawings, search combinations, and rank up to 10 number choices.</p>
   </div>
-  <div style={panel}><b>1. Choose your game</b><div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:7}}>{games.map(item=><button key={item.name} onClick={()=>setGame(item.name)} style={{background:game===item.name?'#29475f':'#112537',border:'1px solid '+(game===item.name?'#acd4f0':'#476075'),borderRadius:9,padding:'12px 4px',color:'#e9f4fb',minHeight:63,fontSize:11,fontWeight:game===item.name?700:400}}>{item.name}</button>)}</div></div>
-  <div style={panel}><b>2. Analysis settings</b><label style={{fontSize:12,color:light}}>Historical drawings<select disabled={loading} value={chosen} onChange={e=>setWindow(e.target.value)} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{counts.map(n=><option value={n} key={n}>Last {n.toLocaleString()} drawings</option>)}</select></label>
-   <label style={{fontSize:12,color:light}}>Combinations to check<select value={size} onChange={e=>setSize(e.target.value)} disabled={!!g.ordered} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{(g.ordered?[Math.pow(10,g.count)]:[1000,5000,10000,25000,50000,100000]).map(n=><option key={n} value={n}>{n.toLocaleString()} {g.ordered?'(all ordered combinations)':'distinct attempts'}</option>)}</select></label>
+
+  <div style={panel}><b>2. Analysis settings — {game}</b><label style={{fontSize:12,color:light}}>Historical drawings<select disabled={loading} value={chosen} onChange={e=>setWindow(e.target.value)} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{counts.map(n=><option value={n} key={n}>Last {n.toLocaleString()} drawings</option>)}</select></label>
+   <label style={{fontSize:12,color:light}}>Combinations to check<select value={requestedCount} onChange={e=>setSize(e.target.value)} disabled={!!g.ordered} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{comboOptions.map(n=><option key={n} value={n}>{n.toLocaleString()} {g.ordered?'(all ordered combinations)':'distinct attempts'}</option>)}</select></label>
    <small style={{color:'#afc9dc'}}>✓ Frequency, pairs, gaps, odd/even, multi-period checks and combination search included.</small>
-  </div><div style={panel}><b>3. Run complete analysis</b><button disabled={loading||!!error} onClick={()=>{void run();}} style={{padding:14,border:'none',borderRadius:10,background:'#a9cfee',fontWeight:800,color:'#102235'}}>▶ Run All Tests & Get Recommendations</button>{loading&&<small>Loading official drawings…</small>}{error&&<small style={{color:'#f0b6ae'}}>{error}</small>}</div></>}
+  </div><div style={panel}><b>3. Run complete analysis</b><button disabled={loading||!!error} onClick={()=>{void run();}} style={{padding:14,border:'none',borderRadius:10,background:'#a9cfee',fontWeight:800,color:'#102235'}}>▶ Run All {game} Tests & Get Recommendations</button>{loading&&<small>Loading official drawings…</small>}{error&&<small style={{color:'#f0b6ae'}}>{error}</small>}</div></>}
   {running&&<div style={panel}><div style={{fontSize:12,color:'#add0e6'}}>✦ RUNNING COMPLETE ANALYSIS</div><h3 style={{margin:0}}>{game}</h3><div style={{height:9,borderRadius:9,background:'#102033',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#a9cfee'}}/></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:light}}><span>{stage}</span><b>{progress}%</b></div>{['Number frequencies','Repeating pairs','Gaps and overdue numbers','Odd/even distributions','Five historical periods','Combination search','Recommendation ranking'].map((name,i)=><div key={name} style={{color:i<5||progress>i*15?'#cfe0ed':'#7c95aa',fontSize:12}}>{i<5||progress>i*15?'✓':'○'} {name}</div>)}</div>}
-  {result&&<><div style={{...panel,borderColor:'#64829a'}}><strong style={{fontSize:17}}>✓ Analysis complete</strong><small style={{color:'#b9d2e3'}}>{game} · {result.tested.toLocaleString()} unique combinations · Through {result.lastDate}</small><button onClick={()=>{setResult(null);setProgress(0);}} style={{background:'#233e54',border:'1px solid #617f97',borderRadius:8,padding:10,color:'#e1f1fa'}}>New analysis / change game</button></div>
+  {result&&<><div style={{...panel,borderColor:'#64829a'}}><strong style={{fontSize:17}}>✓ Analysis complete</strong><small style={{color:'#b9d2e3'}}>{game} · {result.tested.toLocaleString()} unique combinations · Through {result.lastDate}</small><button onClick={()=>{setResult(null);setProgress(0);}} style={{background:'#233e54',border:'1px solid #617f97',borderRadius:8,padding:10,color:'#e1f1fa'}}>Run another test / choose game</button></div>
    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5}}>{tabButton('picks','Top Picks')}{tabButton('patterns','Patterns Found')}{tabButton('tests','Test Results')}</div>
    {detail==='picks'&&result.picks.map((p,i)=><div key={maskKey(p.nums,p.bonus)} style={panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{color:'#c8e5f8'}}>#{i+1} Recommended numbers</b><small style={{color:'#b6cedf'}}>Historical rank {i+1}/10</small></div><div style={{display:'flex',gap:5,flexWrap:'wrap'}}>{p.nums.map((n,j)=><span key={j} style={{height:33,minWidth:33,padding:4,borderRadius:22,display:'grid',placeItems:'center',background:'#263e52',border:'1px solid #7092ae',color:'white',fontWeight:700,fontSize:12}}>{n}</span>)}{p.bonus!==undefined&&<span style={{padding:8,borderRadius:20,background:'#694249',fontSize:12}}>+{p.bonus}</span>}</div><small style={{color:'#aecbde'}}>Discovery match: {p.train}/{result.train} · Unseen match: {p.hold}/{result.hold} drawings</small><b style={{fontSize:11}}>Why this combination ranked highly:</b>{p.reasons.map((reason,j)=><small key={j} style={{color:'#b6cadb'}}>• {reason}</small>)}<small style={{color:'#96aabd'}}>Ranking score is based on past drawings, not future winning odds.</small><button onClick={()=>onSave(game,p.nums,p.bonus)} style={{padding:10,background:'#a9cfee',color:'#102033',border:'none',borderRadius:9,fontWeight:700}}>Save Pick</button></div>)}
    {detail==='patterns'&&<div style={panel}><b>Patterns tested</b>{result.patterns.map(p=><div key={p} style={{padding:'9px 0',borderBottom:'1px solid #354c62',fontSize:12,color:'#c6d9e8'}}>✓ {p}</div>)}<small style={{color:'#9fbacc'}}>These patterns occur naturally in random sequences and may not repeat.</small></div>}
