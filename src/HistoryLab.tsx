@@ -1,4 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import HistoricalEstimate from './HistoricalEstimate';
 type Draw={date:string;nums:number[]};
 type Archive={source:string;first:string;last:string;count:number;draws:Draw[]};
 const ranges=[['30','30 drawings'],['100','100 drawings'],['year','1 year'],['5years','5 years'],['all','All history']] as const;
@@ -16,7 +17,7 @@ export default function HistoryLab(){
  <div style={{fontSize:10,letterSpacing:2,color:'#a9cfee'}}>OFFICIAL HISTORICAL RESEARCH</div><h3 style={{fontSize:19,margin:0}}>Lotto Texas Archive</h3>
  {error?<p role="alert" style={{color:'#ffceba'}}>Historical data could not load: {error}. No substitute results will be displayed.</p>:!data?<p>Loading verified drawing archive…</p>:<>
  <p style={{fontSize:12,color:'#b4c6d4',lineHeight:1.6,margin:0}}>{data.count.toLocaleString()} verified drawings available · {data.first} to {data.last}. Current format only (6 of 54); older rule periods excluded.</p>
- {recommendation&&<div style={{background:'#122335',border:'1px solid #6e91ac',borderRadius:12,padding:14,display:'grid',gap:9}}><b style={{color:'#b9ddf4',fontSize:13}}>MY PICK · LAST 100 DRAWS</b><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{recommendation.picks.map(n=><span key={n} style={{border:'1px solid #88b5d6',background:'#233f56',borderRadius:50,minWidth:35,padding:'8px 7px',textAlign:'center',fontWeight:750}}>{n}</span>)}</div><p style={{fontSize:12,color:'#c0d0dd',margin:0}}>Selected by highest main-ball frequency in the latest {recommendation.draws} verified drawings. This is a historical ranking, not an increased chance of winning.</p><div style={{fontSize:13,color:'#e7f0f7'}}>Actual jackpot probability: <strong>1 in 25,827,165</strong></div><small style={{color:'#afc5d7'}}>≈0.00000387% per eligible six-number combination. Every valid combination has these same odds.</small></div>}
+ <HistoricalEstimate draws={data.draws} max={54} pickCount={6} game="Lotto Texas"/>
  <label style={{display:'grid',gap:7,fontSize:12,color:'#a9cfee'}}>Analyze range<select aria-label="Historical range" value={range} onChange={e=>{setRange(e.target.value);setOpen(false)}} style={{background:'#102033',border:'1px solid #536f88',borderRadius:9,padding:12,color:'#edf6ff',width:'100%',fontSize:15}}>{ranges.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
  <p style={{fontSize:12,color:'#b7c9da',margin:0}}>Showing {selected.length.toLocaleString()} drawings · {selected[0]?.date} to {selected[selected.length-1]?.date}</p>
  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{counts.map(v=><div key={v.n} style={{border:'1px solid #486078',padding:'8px 10px',borderRadius:10,textAlign:'center',minWidth:43}}><b style={{display:'block',fontSize:16}}>{v.n}</b><small style={{color:'#a7bacb',fontSize:10}}>{v.count}×</small></div>)}</div>
