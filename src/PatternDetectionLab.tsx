@@ -29,6 +29,7 @@ function countOdds(rule:Rule,odds:number){
  const oddOptions=Math.ceil(rule.max/2),evenOptions=Math.floor(rule.max/2);
  return choose(oddOptions,odds)*choose(evenOptions,rule.count-odds)/choose(rule.max,rule.count);
 }
+function lastIndexWhere(draws:Draw[],check:(draw:Draw)=>boolean){for(let i=draws.length-1;i>=0;i--)if(check(draws[i]))return i;return -1;}
 function occurs(draw:Draw,n:number,position:number|null){
  return position===null?draw.nums.includes(n):draw.nums[position]===n;
 }
@@ -77,7 +78,7 @@ function runPatterns(all:Draw[],rule:Rule,window:number):{cards:Evidence[];train
  }
  let overdue:{num:number;pos:number|null;gap:number}|undefined;
  for(const pos of positions)for(const n of numberOptions){
-  const last=older.findLastIndex(d=>occurs(d,n,pos));
+  const last=lastIndexWhere(older,d=>occurs(d,n,pos));
   const gap=older.length-1-last;
   if(!overdue||gap>overdue.gap)overdue={num:n,pos,gap};
  }
@@ -87,7 +88,7 @@ function runPatterns(all:Draw[],rule:Rule,window:number):{cards:Evidence[];train
   const previous=subset.slice(0,i);
   let bestN=numberOptions[0],bestPos=positions[0],longest=-1;
   for(const pos of positions)for(const n of numberOptions){
-   const last=previous.findLastIndex(d=>occurs(d,n,pos));
+   const last=lastIndexWhere(previous,d=>occurs(d,n,pos));
    const gap=previous.length-1-last;
    if(gap>longest){longest=gap;bestN=n;bestPos=pos;}
   }
