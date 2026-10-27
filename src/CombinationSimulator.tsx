@@ -1,4 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import RepeatabilityLab from './RepeatabilityLab';
 type Draw={date:string;nums:number[];bonus?:number};
 type Archive={draws:Draw[];source:string};
 type GameConfig={file:string;count:number;max:number;bonus?:number;ordered?:boolean;session?:string};
@@ -208,6 +209,7 @@ export default function CombinationSimulator({game}:{game:string}){
    {Number(searchSize)>=50000&&<small style={{color:'#e6caad'}}>High-volume testing on an iPhone may be slower. Results are processed in batches to keep the interface responsive.</small>}
    <small style={{color:'#b5d3e5'}}>A random ticket is expected to hit {targetNum}+ {cfg.ordered?'positions':'main numbers'} in {(expectedRandom*100).toFixed(expectedRandom<0.001?3:1)}% of independent drawings ({expectedText(expectedRandom,verificationTotal)} expected matches in the {verificationTotal} unseen drawings).</small>
    <small style={{color:'#c0d1df'}}>Using {trainingTotal.toLocaleString()} draws for ranking, {verificationTotal.toLocaleString()} newer draws for an independent check. Bonus ball does not count toward the match threshold.</small>
+   <RepeatabilityLab key={game+'-'+windowSize+'-'+target} draws={archive.draws} game={game} count={cfg.count} max={cfg.max} ordered={!!cfg.ordered} lookback={Math.min(chosenWindow,1000)} target={targetNum}/>
    <button disabled={running||chosenWindow<30} onClick={()=>{void runSearch();}} style={{background:'#aed4f2',color:'#102033',border:0,borderRadius:10,padding:13,fontWeight:750,fontSize:14}}>{running?'Testing '+progress.toLocaleString()+' / '+Number(searchSize).toLocaleString()+'…':'Search '+Number(searchSize).toLocaleString()+' combinations'}</button>
    {result&&<div style={{display:'grid',gap:10}}>
     <div style={{borderBottom:'1px solid #466078',paddingBottom:9}}><strong style={{fontSize:13}}>{result.tested.toLocaleString()} distinct combinations tested{profile.digitExhaustive&&result.tested===fullSpace(cfg)?' — COMPLETE number space':''}</strong><p style={{color:'#b8cede',fontSize:11,margin:'6px 0 0'}}>Historical window: {result.window} drawings ending {result.date}. Ranked using {result.train.length} older draws; checked against {result.holdout.length} later draws.</p></div>
