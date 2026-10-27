@@ -21,6 +21,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: node scripts/import-lotto-history.mjs
       - run: node scripts/import-multigame-history.mjs
+      - run: node scripts/import-remaining-games.mjs
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
