@@ -19,12 +19,16 @@ const games:Game[]=[
 function nextDate(g:Game,now:Date){
  const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
- const start=new Date(Math.ceil(now.getTime()/60000)*60000);
- for(let minutes=0;minutes<8*24*60;minutes++){
-  const t=new Date(start.getTime()+minutes*60000);
-  const parts=Object.fromEntries(fmt.formatToParts(t).map(x=>[x.type,x.value]));
-  if(g.days.includes(weekdays.indexOf(parts.weekday))&&g.times.includes(parts.hour+':'+parts.minute)){
-   return {timestamp:t,date:t.toLocaleDateString('en-US',{timeZone:'America/Chicago',weekday:'short',month:'short',day:'numeric',year:'numeric'}),time:t.toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit'})+' CT'};
+ const minuteChoices=[0,12,27];
+ const firstHour=Math.floor(now.getTime()/3600000)*3600000;
+ for(let hour=0;hour<8*24;hour++){
+  for(const minute of minuteChoices){
+   const t=new Date(firstHour+hour*3600000+minute*60000);
+   if(t<=now)continue;
+   const parts=Object.fromEntries(fmt.formatToParts(t).map(x=>[x.type,x.value]));
+   if(g.days.includes(weekdays.indexOf(parts.weekday))&&g.times.includes(parts.hour+':'+parts.minute)){
+    return {timestamp:t,date:t.toLocaleDateString('en-US',{timeZone:'America/Chicago',weekday:'short',month:'short',day:'numeric',year:'numeric'}),time:t.toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit'})+' CT'};
+   }
   }
  }
  return null;
