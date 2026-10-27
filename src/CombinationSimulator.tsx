@@ -90,10 +90,23 @@ function evaluate(ticket:Ticket,draws:Draw[],ordered:boolean,threshold:number){
  return {successes,score};
 }
 function formatRate(a:number,n:number){return n?(a*100/n).toFixed(1)+'%':'—';}
+function combination(n:number,k:number){if(k<0||k>n)return 0;let v=1;for(let i=1;i<=k;i++)v=v*(n-i+1)/i;return v;}
+function chanceRandom(cfg:GameConfig,threshold:number){
+ let total=0;
+ if(cfg.ordered){
+  for(let m=threshold;m<=cfg.count;m++)total+=combination(cfg.count,m)*Math.pow(0.1,m)*Math.pow(0.9,cfg.count-m);
+ }else{
+  const denom=combination(cfg.max,cfg.count);
+  for(let m=threshold;m<=cfg.count;m++)total+=combination(cfg.count,m)*combination(cfg.max-cfg.count,cfg.count-m)/denom;
+ }
+ return total;
+}
+function expectedText(p:number,n:number){const expected=p*n;return expected<0.01?'<0.01':expected.toFixed(expected<10?2:1);}
+
 const methods=['Uniform random','Historical frequency','Cold-weighted','Mutated past winner'];
 export default function CombinationSimulator({game}:{game:string}){
  const cfg=configs[game];const profile=profiles[game];const [archive,setArchive]=useState<Archive|null>(null);const [error,setError]=useState('');
- const [windowSize,setWindowSize]=useState(String(profile.defaultWindow)),[searchSize,setSearchSize]=useState(String(profile.defaultSearch)),[topSize,setTopSize]=useState('5'),[target,setTarget]=useState('3');
+ const [windowSize,setWindowSize]=useState(String(profile.defaultWindow)),[searchSize,setSearchSize]=useState(String(profile.defaultSearch)),[topSize,setTopSize]=useState('5'),[target,setTarget]=useState(cfg.ordered?'2':'3');
  const [running,setRunning]=useState(false);const [progress,setProgress]=useState(0);
  const [result,setResult]=useState<{ranked:Candidate[];train:Draw[];holdout:Draw[];tested:number;unique:number;goal:number;window:number;date:string}|null>(null);
  useEffect(()=>{let active=true;setArchive(null);setError('');setResult(null);setRunning(false);
@@ -105,6 +118,7 @@ export default function CombinationSimulator({game}:{game:string}){
  const verificationTotal=chosenWindow-trainingTotal;
  const targetNum=Math.min(Number(target),cfg.count);
  const top=useMemo(()=>result?.ranked||[],[result]);
+ const expectedRandom=chanceRandom(cfg,targetNum);
  async function runSearch(){
   if(!archive||running)return;
   const all=archive.draws;
@@ -168,19 +182,21 @@ export default function CombinationSimulator({game}:{game:string}){
     <label style={{fontSize:12,color:'#b4d7ef'}}>Success means<select style={control} value={target} disabled={running} onChange={e=>{setTarget(e.target.value);setResult(null)}}>{Array.from({length:cfg.count},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}+ {cfg.ordered?'correct positions':'main numbers'}</option>)}</select></label>
    </div>
    {Number(searchSize)>=50000&&<small style={{color:'#e6caad'}}>High-volume testing on an iPhone may be slower. Results are processed in batches to keep the interface responsive.</small>}
+   <small style={{color:'#b5d3e5'}}>A random ticket is expected to hit {targetNum}+ {cfg.ordered?'positions':'main numbers'} in {(expectedRandom*100).toFixed(expectedRandom<0.001?3:1)}% of independent drawings ({expectedText(expectedRandom,verificationTotal)} expected matches in the {verificationTotal} unseen drawings).</small>
    <small style={{color:'#c0d1df'}}>Using {trainingTotal.toLocaleString()} draws for ranking, {verificationTotal.toLocaleString()} newer draws for an independent check. Bonus ball does not count toward the match threshold.</small>
    <button disabled={running||chosenWindow<30} onClick={()=>{void runSearch();}} style={{background:'#aed4f2',color:'#102033',border:0,borderRadius:10,padding:13,fontWeight:750,fontSize:14}}>{running?'Testing '+progress.toLocaleString()+' / '+Number(searchSize).toLocaleString()+'…':'Search '+Number(searchSize).toLocaleString()+' combinations'}</button>
    {result&&<div style={{display:'grid',gap:10}}>
-    <div style={{borderBottom:'1px solid #466078',paddingBottom:9}}><strong style={{fontSize:13}}>{result.tested.toLocaleString()} distinct combinations tested</strong><p style={{color:'#b8cede',fontSize:11,margin:'6px 0 0'}}>Historical window: {result.window} drawings ending {result.date}. Ranked using {result.train.length} older draws; checked against {result.holdout.length} later draws.</p></div>
+    <div style={{borderBottom:'1px solid #466078',paddingBottom:9}}><strong style={{fontSize:13}}>{result.tested.toLocaleString()} distinct combinations tested{profile.digitExhaustive&&result.tested===fullSpace(cfg)?' — COMPLETE number space':''}</strong><p style={{color:'#b8cede',fontSize:11,margin:'6px 0 0'}}>Historical window: {result.window} drawings ending {result.date}. Ranked using {result.train.length} older draws; checked against {result.holdout.length} later draws.</p></div>
+    <div style={{background:'#122b40',border:'1px solid #51718a',borderRadius:9,padding:11,fontSize:12,color:'#c8dce9',lineHeight:1.6}}><b>Random-chance reference:</b> {formatRate(chanceRandom(cfg,result.goal)*100,100)} per ticket per drawing for {result.goal}+ {cfg.ordered?'correct digit positions':'main numbers'}. Across {result.holdout.length} unseen drawings, about {expectedText(chanceRandom(cfg,result.goal),result.holdout.length)} successes would be expected for one random ticket. Zero observed successes can be normal.</div>
     {top.map((entry,index)=><div key={entry.ticket.nums.join(',')+'|'+entry.ticket.bonus} style={{background:'#102438',border:'1px solid #4c6b82',borderRadius:11,padding:12,display:'grid',gap:9}}>
      <strong style={{color:'#c1dff3',fontSize:13}}>#{index+1} · {entry.method}</strong>
      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>{entry.ticket.nums.map((n,i)=><b key={i} style={{padding:'7px 10px',border:'1px solid #8cabc3',borderRadius:30,fontSize:14}}>{n}</b>)}{entry.ticket.bonus!==undefined&&<b style={{padding:'7px 10px',border:'1px solid #c99f75',borderRadius:30,fontSize:14}}>+ {entry.ticket.bonus}</b>}</div>
      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      <div><small style={{color:'#acc6d8'}}>Ranking-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.trainHits,result.train.length)}</strong><small style={{color:'#aebfd0'}}>{entry.trainHits}/{result.train.length} draws</small></div>
-      <div><small style={{color:'#acc6d8'}}>Unseen-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.verifiedHits,result.holdout.length)}</strong><small style={{color:'#aebfd0'}}>{entry.verifiedHits}/{result.holdout.length} draws</small></div>
+      <div><small style={{color:'#acc6d8'}}>Ranking-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.trainHits,result.train.length)}</strong><small style={{color:'#aebfd0'}}>{entry.trainHits} successes, {result.train.length-entry.trainHits} misses / {result.train.length} draws</small></div>
+      <div><small style={{color:'#acc6d8'}}>Unseen-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.verifiedHits,result.holdout.length)}</strong><small style={{color:'#aebfd0'}}>{entry.verifiedHits} successes, {result.holdout.length-entry.verifiedHits} misses / {result.holdout.length} draws</small></div>
      </div>
     </div>)}
-    <p style={{fontSize:11,color:'#bacbd9',lineHeight:1.6,margin:0}}>The ranking percentage is the fraction of historical draws where this exact combination met your {result.goal}+ match target. The separate check uses newer draws excluded from ranking. Searching thousands of combinations will always find some unusually strong-looking historical matches by chance; these percentages are not estimates of future jackpot-winning probability.</p>
+    <p style={{fontSize:11,color:'#bacbd9',lineHeight:1.6,margin:0}}>The ranking percentage is the fraction of historical draws where this exact combination met your {result.goal}+ match target. The separate check uses newer draws excluded from ranking. For ordered digit games, partial matches count only in the correct positions. A 0.0% unseen rate means no successes were observed in that small period, not a zero chance next time. Searching thousands of combinations will always find some unusually strong-looking historical matches by chance; these percentages are not estimates of future jackpot-winning probability.</p>
    </div>}
   </>}
  </section>;
