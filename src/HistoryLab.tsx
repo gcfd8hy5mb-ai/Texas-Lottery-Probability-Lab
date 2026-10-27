@@ -3,7 +3,7 @@ const source='https://www.texaslottery.com/export/sites/lottery/Games/Lotto_Texa
 const draws=[
  {date:'2026-08-19',nums:[20,38,40,43,47,49]},
  {date:'2026-08-22',nums:[12,29,33,43,47,54]},
- {date:'2026-08-24',nums:[3,16,33,38,40,48]},
+ {date:'2026-08-24',nums:[3,8,25,36,50,51]},
  {date:'2026-08-26',nums:[11,12,20,26,40,48]},
  {date:'2026-08-29',nums:[4,13,22,32,36,47]},
  {date:'2026-08-31',nums:[13,14,16,34,41,49]},
