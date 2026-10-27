@@ -30,3 +30,5 @@ export default function DrawHistoryLab({game}:{game:string}){
  {expanded&&<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>{results.filter(v=>experiment||v.mode==='frequency'||v.mode==='random').map(v=><div key={v.mode} style={{border:'1px solid #4a6076',borderRadius:9,padding:12}}><small style={{color:'#b8c9d9'}}>{({frequency:'Hot frequency',cold:'Cold frequency',overdue:'Longest absent',random:'Random baseline'} as Record<Mode,string>)[v.mode]}</small><strong style={{display:'block',fontSize:24}}>{v.hits}</strong><small>{v.trials} holdout drawings</small></div>)}</div><p style={{fontSize:11,color:'#b6cada',lineHeight:1.6,margin:0}}>Walk-forward backtest uses only past observations for each test. Bonus balls excluded. Hot, cold, and overdue strategies are speculative; no evidence that they beat fair independent lottery odds. Historical match totals do not measure profitability.</p></>}
  <a href={data.source} target="_blank" rel="noreferrer" style={{fontSize:12,color:'#b5d8f4'}}>Official Texas Lottery download ↗</a>
  </>}</section>;
+
+}
