@@ -1,0 +1,158 @@
+import React,{useEffect,useMemo,useState} from 'react';
+type Draw={date:string;nums:number[];bonus?:number};
+type Archive={draws:Draw[];source:string};
+type GameConfig={file:string;count:number;max:number;bonus?:number;ordered?:boolean;session?:string};
+type Ticket={nums:number[];bonus?:number};
+type Candidate={ticket:Ticket;trainHits:number;trainScore:number;verifiedHits:number;verifiedScore:number;method:string};
+const configs:Record<string,GameConfig>={
+ 'Lotto Texas':{file:'lotto-texas.json',count:6,max:54},
+ 'Powerball':{file:'powerball.json',count:5,max:69,bonus:26},
+ 'Mega Millions':{file:'mega-millions.json',count:5,max:70,bonus:24},
+ 'Texas Two Step':{file:'texas-two-step.json',count:4,max:35,bonus:35},
+ 'Cash Five':{file:'cash-five.json',count:5,max:35},
+ 'All or Nothing':{file:'all-or-nothing.json',count:12,max:24,session:'Night'},
+ 'Pick 3':{file:'pick-3.json',count:3,max:9,ordered:true,session:'Night'},
+ 'Daily 4':{file:'daily-4.json',count:4,max:9,ordered:true,session:'Night'}
+};
+const control:React.CSSProperties={color:'#f0f7fc',background:'#102235',border:'1px solid #536e87',borderRadius:9,padding:'10px 8px',fontSize:14,width:'100%'};
+function generator(seed:number){let state=seed>>>0;return ()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};}
+function chooseWeighted(options:number[],weights:number[],next:()=>number){
+ const total=weights.reduce((s,x)=>s+x,0);let roll=next()*total;
+ for(let i=0;i<weights.length;i++){roll-=weights[i];if(roll<=0)return i;}
+ return options.length-1;
+}
+function generateCandidate(cfg:GameConfig,train:Draw[],counts:number[][],bonusCounts:number[],next:()=>number,method:number):Ticket{
+ const nums:number[]=[];
+ const recent=train.slice(-Math.min(30,train.length));
+ // A mix of random, frequency-weighted, cold-weighted and mutated past winning combinations.
+ if(!cfg.ordered&&method===3&&train.length){
+  const base=recent[Math.floor(next()*recent.length)];
+  nums.push(...base.nums.slice(0,cfg.count));
+  const mutate=1+Math.floor(next()*Math.min(cfg.count,3));
+  for(let i=0;i<mutate;i++){
+   const ix=Math.floor(next()*nums.length);
+   let replacement=1+Math.floor(next()*cfg.max);let tries=0;
+   while(nums.includes(replacement)&&tries++<100)replacement=1+Math.floor(next()*cfg.max);
+   if(!nums.includes(replacement))nums[ix]=replacement;
+  }
+ }else for(let pos=0;pos<cfg.count;pos++){
+  const pool=Array.from({length:cfg.max+(cfg.ordered?1:0)},(_,i)=>i+(cfg.ordered?0:1)).filter(n=>cfg.ordered||!nums.includes(n));
+  const row=counts[cfg.ordered?pos:0];
+  const weights=pool.map(n=>method===0?1:method===2?1/(1+row[n]):1+row[n]*3);
+  nums.push(pool[chooseWeighted(pool,weights,next)]);
+ }
+ if(!cfg.ordered)nums.sort((a,b)=>a-b);
+ let bonus:number|undefined;
+ if(cfg.bonus){
+  const pool=Array.from({length:cfg.bonus},(_,i)=>i+1);
+  bonus=pool[chooseWeighted(pool,pool.map(n=>method===0?1:1+bonusCounts[n]*3),next)];
+ }
+ return {nums,bonus};
+}
+function statistics(draws:Draw[],cfg:GameConfig){
+ const counts=Array.from({length:cfg.ordered?cfg.count:1},()=>Array(cfg.max+1).fill(0) as number[]);
+ const bonus=Array((cfg.bonus||0)+1).fill(0) as number[];
+ for(const d of draws){
+  if(cfg.ordered)d.nums.forEach((n,i)=>counts[i][n]++);
+  else for(const n of d.nums)counts[0][n]++;
+  if(cfg.bonus&&d.bonus!==undefined)bonus[d.bonus]++;
+ }
+ return {counts,bonus};
+}
+function matches(ticket:Ticket,draw:Draw,ordered:boolean){
+ let hits=0;
+ if(ordered){for(let i=0;i<ticket.nums.length;i++)if(ticket.nums[i]===draw.nums[i])hits++;}
+ else for(const n of ticket.nums)if(draw.nums.includes(n))hits++;
+ return hits;
+}
+function evaluate(ticket:Ticket,draws:Draw[],ordered:boolean,threshold:number){
+ let successes=0,score=0;
+ for(const draw of draws){
+  const count=matches(ticket,draw,ordered);
+  if(count>=threshold)successes++;
+  // Secondary sort makes ties reproducible without changing the selected match threshold.
+  score+=count;
+ }
+ return {successes,score};
+}
+function formatRate(a:number,n:number){return n?(a*100/n).toFixed(1)+'%':'—';}
+const methods=['Uniform random','Historical frequency','Cold-weighted','Mutated past winner'];
+export default function CombinationSimulator({game}:{game:string}){
+ const cfg=configs[game];const [archive,setArchive]=useState<Archive|null>(null);const [error,setError]=useState('');
+ const [windowSize,setWindowSize]=useState('100'),[searchSize,setSearchSize]=useState('5000'),[topSize,setTopSize]=useState('5'),[target,setTarget]=useState('3');
+ const [running,setRunning]=useState(false);const [progress,setProgress]=useState(0);
+ const [result,setResult]=useState<{ranked:Candidate[];train:Draw[];holdout:Draw[];tested:number;unique:number;goal:number;window:number;date:string}|null>(null);
+ useEffect(()=>{let active=true;setArchive(null);setError('');setResult(null);setRunning(false);
+ fetch(import.meta.env.BASE_URL+'data/'+cfg.file,{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then((data:Archive)=>{if(!Array.isArray(data.draws)||data.draws.length<30)throw Error('Invalid or incomplete archive');if(active)setArchive(data);}).catch(e=>{if(active)setError(String(e.message||e));});return()=>{active=false};},[game,cfg.file]);
+ const maxDraws=archive?.draws.length||0;
+ const chosenWindow=Math.min(Number(windowSize),maxDraws);
+ const allowedWindows=[30,50,100,250,500,1000,2000,5000].filter(n=>n<=maxDraws);
+ const trainingTotal=Math.max(1,Math.floor(chosenWindow*.7));
+ const verificationTotal=chosenWindow-trainingTotal;
+ const targetNum=Math.min(Number(target),cfg.count);
+ const top=useMemo(()=>result?.ranked||[],[result]);
+ async function runSearch(){
+  if(!archive||running)return;
+  const all=archive.draws;
+  const window=all.slice(-chosenWindow);
+  if(window.length<30)return;
+  const split=Math.floor(window.length*.7);
+  const train=window.slice(0,split),holdout=window.slice(split);
+  const {counts,bonus}=statistics(train,cfg);
+  const nRequested=Number(searchSize),next=generator(0x42f0921^all.length^Number(searchSize)^chosenWindow);
+  const seen=new Set<string>();
+  const candidates:Candidate[]=[];
+  setResult(null);setRunning(true);setProgress(0);
+  try{
+   // Chunked work prevents the iPhone page from freezing during larger searches.
+   const batch=250;
+   for(let i=0,attempts=0;i<nRequested&&attempts<nRequested*20;){
+    const end=Math.min(i+batch,nRequested);
+    while(i<end&&attempts<nRequested*20){
+     attempts++;
+     const mode=(attempts-1)%methods.length;
+     const ticket=generateCandidate(cfg,train,counts,bonus,next,mode);
+     const key=ticket.nums.join('-')+'|'+(ticket.bonus||0);
+     if(seen.has(key))continue;
+     seen.add(key);
+     const training=evaluate(ticket,train,!!cfg.ordered,targetNum);
+     candidates.push({ticket,trainHits:training.successes,trainScore:training.score,verifiedHits:0,verifiedScore:0,method:methods[mode]});
+     i++;
+    }
+    setProgress(i);
+    await new Promise<void>(resolve=>setTimeout(resolve,0));
+   }
+   // Rank with TRAINING only; validation outcomes do not influence the order.
+   candidates.sort((a,b)=>b.trainHits-a.trainHits||b.trainScore-a.trainScore||a.ticket.nums.join('-').localeCompare(b.ticket.nums.join('-')));
+   const leaders=candidates.slice(0,Number(topSize));
+   for(const ticket of leaders){const verified=evaluate(ticket.ticket,holdout,!!cfg.ordered,targetNum);ticket.verifiedHits=verified.successes;ticket.verifiedScore=verified.score;}
+   setResult({ranked:leaders,train,holdout,tested:candidates.length,unique:seen.size,goal:targetNum,window:window.length,date:all[all.length-1].date});
+  }finally{setRunning(false);}
+ }
+ return <section style={{background:'#192b3d',border:'1px solid #34485a',borderRadius:15,padding:15,display:'grid',gap:13}}>
+  <div><div style={{fontSize:10,color:'#afd8f4',letterSpacing:2}}>COMBINATION SEARCH LAB</div><h2 style={{fontSize:19,margin:'7px 0'}}>Find the strongest historical matches</h2><p style={{color:'#b8cede',fontSize:12,lineHeight:1.6,margin:0}}>Generate thousands of distinct combinations, score them against the drawings you choose, and show their results on a separate set of historical drawings.</p></div>
+  {error?<p role="alert" style={{color:'#ffd1c0'}}>Official archive unavailable: {error}</p>:!archive?<p style={{color:'#b8cede',fontSize:12}}>Loading verified drawing archive…</p>:<>
+   <small style={{color:'#b8cede'}}>{maxDraws.toLocaleString()} historical drawings available{cfg.session?' · '+cfg.session+' only':''} · through {archive.draws[archive.draws.length-1]?.date}</small>
+   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9}}>
+    <label style={{fontSize:12,color:'#b4d7ef'}}>Drawings to analyze<select style={control} value={allowedWindows.includes(Number(windowSize))?windowSize:String(allowedWindows[allowedWindows.length-1])} disabled={running} onChange={e=>{setWindowSize(e.target.value);setResult(null)}}>{allowedWindows.map(n=><option value={n} key={n}>{n.toLocaleString()} draws</option>)}</select></label>
+    <label style={{fontSize:12,color:'#b4d7ef'}}>Combinations to test<select style={control} value={searchSize} disabled={running} onChange={e=>{setSearchSize(e.target.value);setResult(null)}}>{[1000,2500,5000,10000].map(n=><option value={n} key={n}>{n.toLocaleString()} combinations</option>)}</select></label>
+    <label style={{fontSize:12,color:'#b4d7ef'}}>Show best<select style={control} value={topSize} disabled={running} onChange={e=>{setTopSize(e.target.value);setResult(null)}}>{[3,5,10].map(n=><option value={n} key={n}>Top {n} picks</option>)}</select></label>
+    <label style={{fontSize:12,color:'#b4d7ef'}}>Success means<select style={control} value={target} disabled={running} onChange={e=>{setTarget(e.target.value);setResult(null)}}>{Array.from({length:cfg.count},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}+ {cfg.ordered?'correct positions':'main numbers'}</option>)}</select></label>
+   </div>
+   <small style={{color:'#c0d1df'}}>Using {trainingTotal.toLocaleString()} draws for ranking, {verificationTotal.toLocaleString()} newer draws for an independent check. Bonus ball does not count toward the match threshold.</small>
+   <button disabled={running||chosenWindow<30} onClick={()=>{void runSearch();}} style={{background:'#aed4f2',color:'#102033',border:0,borderRadius:10,padding:13,fontWeight:750,fontSize:14}}>{running?'Testing '+progress.toLocaleString()+' / '+Number(searchSize).toLocaleString()+'…':'Search '+Number(searchSize).toLocaleString()+' combinations'}</button>
+   {result&&<div style={{display:'grid',gap:10}}>
+    <div style={{borderBottom:'1px solid #466078',paddingBottom:9}}><strong style={{fontSize:13}}>{result.tested.toLocaleString()} distinct combinations tested</strong><p style={{color:'#b8cede',fontSize:11,margin:'6px 0 0'}}>Historical window: {result.window} drawings ending {result.date}. Ranked using {result.train.length} older draws; checked against {result.holdout.length} later draws.</p></div>
+    {top.map((entry,index)=><div key={entry.ticket.nums.join(',')+'|'+entry.ticket.bonus} style={{background:'#102438',border:'1px solid #4c6b82',borderRadius:11,padding:12,display:'grid',gap:9}}>
+     <strong style={{color:'#c1dff3',fontSize:13}}>#{index+1} · {entry.method}</strong>
+     <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>{entry.ticket.nums.map((n,i)=><b key={i} style={{padding:'7px 10px',border:'1px solid #8cabc3',borderRadius:30,fontSize:14}}>{n}</b>)}{entry.ticket.bonus!==undefined&&<b style={{padding:'7px 10px',border:'1px solid #c99f75',borderRadius:30,fontSize:14}}>+ {entry.ticket.bonus}</b>}</div>
+     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+      <div><small style={{color:'#acc6d8'}}>Ranking-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.trainHits,result.train.length)}</strong><small style={{color:'#aebfd0'}}>{entry.trainHits}/{result.train.length} draws</small></div>
+      <div><small style={{color:'#acc6d8'}}>Unseen-history match rate</small><strong style={{display:'block',fontSize:22}}>{formatRate(entry.verifiedHits,result.holdout.length)}</strong><small style={{color:'#aebfd0'}}>{entry.verifiedHits}/{result.holdout.length} draws</small></div>
+     </div>
+    </div>)}
+    <p style={{fontSize:11,color:'#bacbd9',lineHeight:1.6,margin:0}}>The ranking percentage is the fraction of historical draws where this exact combination met your {result.goal}+ match target. The separate check uses newer draws excluded from ranking. Searching thousands of combinations will always find some unusually strong-looking historical matches by chance; these percentages are not estimates of future jackpot-winning probability.</p>
+   </div>}
+  </>}
+ </section>;
+}
