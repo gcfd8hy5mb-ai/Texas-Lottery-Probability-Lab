@@ -140,7 +140,7 @@ export default function AutoPickLab({games,onSave}:{games:Game[];onSave:(game:st
   <div style={panel}>
    <b>1. Choose your game</b>
    <div role="group" aria-label="Choose lottery for Auto Pick" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>
-    {games.map(item=><button key={item.name} type="button" aria-pressed={game===item.name} disabled={running} onClick={()=>selectGame(item.name)} style={{background:game===item.name?'#29475f':'#112537',border:'1px solid '+(game===item.name?'#acd4f0':'#476075'),borderRadius:9,padding:'11px 8px',color:'#e9f4fb',minHeight:56,fontSize:12,fontWeight:game===item.name?750:500,textAlign:'left',display:'grid',gap:4,opacity:running&&game!==item.name?.55:1}}>
+    {games.map(item=><button key={item.name} type="button" aria-pressed={game===item.name} disabled={running} onClick={()=>selectGame(item.name)} style={{background:game===item.name?'#29475f':'#112537',border:'1px solid '+(game===item.name?'#acd4f0':'#476075'),borderRadius:9,padding:'11px 8px',color:'#e9f4fb',minHeight:56,fontSize:12,fontWeight:game===item.name?750:500,textAlign:'left',display:'grid',gap:4,opacity:running && game!==item.name ? 0.55 : 1}}>
       <span>{game===item.name?'✓ ':''}{item.name}</span>
       <span style={{fontSize:10,color:'#a9c9df'}}>{item.count}{item.ordered?' ordered digits':' numbers'}{item.bonusMax?' + bonus':''}</span>
     </button>)}
