@@ -17,7 +17,7 @@ export default function HistoryLab(){
  <div style={{fontSize:10,letterSpacing:2,color:'#a9cfee'}}>OFFICIAL HISTORICAL RESEARCH</div><h3 style={{fontSize:19,margin:0}}>Lotto Texas Archive</h3>
  {error?<p role="alert" style={{color:'#ffceba'}}>Historical data could not load: {error}. No substitute results will be displayed.</p>:!data?<p>Loading verified drawing archive…</p>:<>
  <p style={{fontSize:12,color:'#b4c6d4',lineHeight:1.6,margin:0}}>{data.count.toLocaleString()} verified drawings available · {data.first} to {data.last}. Current format only (6 of 54); older rule periods excluded.</p>
- <HistoricalEstimate draws={data.draws} max={54} pickCount={6} game="Lotto Texas"/>
+ <HistoricalEstimate draws={data.draws} max={54} pickCount={6} game="Lotto Texas" rangeStart={data.draws.length-selected.length} trainingWindow={range==="30"?30:100}/>
  <label style={{display:'grid',gap:7,fontSize:12,color:'#a9cfee'}}>Analyze range<select aria-label="Historical range" value={range} onChange={e=>{setRange(e.target.value);setOpen(false)}} style={{background:'#102033',border:'1px solid #536f88',borderRadius:9,padding:12,color:'#edf6ff',width:'100%',fontSize:15}}>{ranges.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
  <p style={{fontSize:12,color:'#b7c9da',margin:0}}>Showing {selected.length.toLocaleString()} drawings · {selected[0]?.date} to {selected[selected.length-1]?.date}</p>
  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{counts.map(v=><div key={v.n} style={{border:'1px solid #486078',padding:'8px 10px',borderRadius:10,textAlign:'center',minWidth:43}}><b style={{display:'block',fontSize:16}}>{v.n}</b><small style={{color:'#a7bacb',fontSize:10}}>{v.count}×</small></div>)}</div>
