@@ -1,7 +1,8 @@
 import React,{useMemo,useState} from 'react';
 
 type Draw={date:string;nums:number[];bonus?:number};
-type Profile={draws:Draw[];game:string;count:number;max:number;ordered:boolean;lookback:number;target:number};
+export type RepeatSummary={method:string;periodsAbove:number;periods:number;pooledRate:number;randomPooledRate:number;draws:number};
+type Profile={draws:Draw[];game:string;count:number;max:number;ordered:boolean;lookback:number;target:number;onResults?:(results:RepeatSummary[])=>void};
 type Mode='hot'|'cold'|'recent'|'overdue';
 const methods:{id:Mode;name:string}[]=[
  {id:'hot',name:'Hot frequency'},
@@ -68,9 +69,15 @@ function evaluate(draws:Draw[],count:number,max:number,ordered:boolean,lookback:
  return output;
 }
 const fmt=(rate:number)=>(rate*100).toFixed(1)+'%';
-export default function RepeatabilityLab({draws,game,count,max,ordered,lookback,target}:Profile){
+export function repeatSummaries(periods:Period[]):RepeatSummary[]{
+ const draws=periods.reduce((sum,p)=>sum+p.draws,0);
+ const randomPooledRate=draws?periods.reduce((sum,p)=>sum+p.randomRate*p.draws,0)/draws:0;
+ return methods.map(method=>({method:method.id,periodsAbove:periods.filter(p=>p.rates[method.id]>p.randomRate).length,periods:periods.length,pooledRate:draws?periods.reduce((sum,p)=>sum+p.rates[method.id]*p.draws,0)/draws:0,randomPooledRate,draws}));
+}
+export default function RepeatabilityLab({draws,game,count,max,ordered,lookback,target,onResults}:Profile){
  const [visible,setVisible]=useState(false);
  const periods=useMemo(()=>visible?evaluate(draws,count,max,ordered,lookback,target):[],[visible,draws,count,max,ordered,lookback,target]);
+ function toggle(){if(!visible){const computed=evaluate(draws,count,max,ordered,lookback,target);onResults?.(repeatSummaries(computed));}setVisible(v=>!v);}
  const rows=useMemo(()=>methods.map(mode=>{
   const rates=periods.map(p=>p.rates[mode.id]);
   const total=periods.reduce((sum,p)=>sum+p.rates[mode.id]*p.draws,0);
@@ -81,7 +88,7 @@ export default function RepeatabilityLab({draws,game,count,max,ordered,lookback,
  return <div style={{...style,display:'grid',gap:10,background:'#122436'}}>
   <strong style={{color:'#b6d8ef',fontSize:14}}>Repeatability across historical periods</strong>
   <p style={{fontSize:12,color:'#b6cadb',lineHeight:1.5,margin:0}}>Does the same selection method repeatedly outperform randomly generated tickets when each prediction uses only earlier results? Test five separate chronological periods, or fewer if history is limited.</p>
-  <button disabled={!draws.length} onClick={()=>setVisible(v=>!v)} style={{border:0,borderRadius:9,padding:11,background:'#b3d4ef',color:'#122335',fontWeight:700}}>{visible?'Hide repeatability':'Run repeatability test'}</button>
+  <button disabled={!draws.length} onClick={toggle} style={{border:0,borderRadius:9,padding:11,background:'#b3d4ef',color:'#122335',fontWeight:700}}>{visible?'Hide repeatability':'Run repeatability test'}</button>
   {visible&&(periods.length===0?<small style={{color:'#d4c7bd'}}>More than {lookback+25} compatible drawings are required.</small>:<>
    <div style={{fontSize:11,color:'#b1cddd'}}>{game} · {lookback} earlier drawings per prediction · {target}+ {ordered?'correct positions':'main-number matches'} · {periods.length} non-overlapping evaluation periods</div>
    <div style={{display:'grid',gap:6}}>{rows.map(row=><div key={row.id} style={{border:'1px solid #49667e',padding:10,borderRadius:9}}>
