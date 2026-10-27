@@ -1,17 +1,6 @@
 import React,{useMemo,useState} from 'react';
-const source='https://www.texaslottery.com/export/sites/lottery/Games/Lotto_Texas/Winning_Numbers/index.html';
-const draws=[
- {date:'2026-08-19',nums:[20,38,40,43,47,49]},
- {date:'2026-08-22',nums:[12,29,33,43,47,54]},
- {date:'2026-08-24',nums:[3,8,25,36,50,51]},
- {date:'2026-08-26',nums:[11,12,20,26,40,48]},
- {date:'2026-08-29',nums:[4,13,22,32,36,47]},
- {date:'2026-08-31',nums:[13,14,16,34,41,49]},
- {date:'2026-09-02',nums:[7,19,20,23,25,39]},
- {date:'2026-09-05',nums:[14,17,25,26,30,37]},
- {date:'2026-09-07',nums:[4,11,12,19,25,45]},
- {date:'2026-09-09',nums:[2,7,15,29,31,43]}
-].filter(d=>d.nums.every(n=>n>=1&&n<=54));
+const source='https://www.texaslottery.com/export/sites/lottery/Games/Lotto_Texas/Winning_Numbers/';
+const draws=[{"date":"2026-09-09","nums":[2,7,15,29,31,43]},{"date":"2026-09-12","nums":[3,8,24,28,30,45]},{"date":"2026-09-14","nums":[3,17,25,31,41,43]},{"date":"2026-09-16","nums":[14,26,37,46,47,51]},{"date":"2026-09-19","nums":[7,25,30,40,49,51]},{"date":"2026-09-21","nums":[2,10,16,30,33,46]},{"date":"2026-09-23","nums":[20,32,39,41,43,47]},{"date":"2026-09-26","nums":[11,21,23,29,30,50]},{"date":"2026-09-28","nums":[8,17,25,26,27,45]},{"date":"2026-09-30","nums":[12,18,19,29,39,54]},{"date":"2026-10-03","nums":[16,23,25,33,37,41]},{"date":"2026-10-05","nums":[1,8,11,41,42,44]},{"date":"2026-10-07","nums":[1,2,17,21,31,52]},{"date":"2026-10-10","nums":[30,35,41,46,50,51]},{"date":"2026-10-12","nums":[6,22,29,32,39,40]},{"date":"2026-10-14","nums":[12,14,20,30,33,40]},{"date":"2026-10-17","nums":[7,12,18,20,45,51]},{"date":"2026-10-19","nums":[1,7,16,32,37,49]},{"date":"2026-10-21","nums":[4,5,13,19,29,36]},{"date":"2026-10-24","nums":[5,13,14,29,35,46]}];
 // Every candidate is chosen from earlier draws only; no future data enters the strategy.
 function scores(mode:'frequency'|'random'){let total=0;const results=[];for(let i=4;i<draws.length;i++){const history=draws.slice(0,i);const freq=new Array(55).fill(0);for(const d of history)for(const n of d.nums)freq[n]++;const ordered=Array.from({length:54},(_,j)=>j+1);if(mode==='frequency'){ordered.sort((a,b)=>freq[b]-freq[a]||a-b)}else{ // Deterministic pseudo-random baseline, reproducible between renders
 let state=(i+1234)>>>0;for(let j=ordered.length-1;j>0;j--){state=(Math.imul(state,1664525)+1013904223)>>>0;const k=state%(j+1);[ordered[j],ordered[k]]=[ordered[k],ordered[j]];}
@@ -19,7 +8,7 @@ let state=(i+1234)>>>0;for(let j=ordered.length-1;j>0;j--){state=(Math.imul(stat
 const pick=ordered.slice(0,6);const hits=pick.filter(n=>draws[i].nums.includes(n)).length;total+=hits;results.push({date:draws[i].date,hits})}return {total,results}}
 export default function HistoryLab(){const [open,setOpen]=useState(false);const frequency=useMemo(()=>scores('frequency'),[]);const random=useMemo(()=>scores('random'),[]);const rows=draws.flatMap(d=>d.nums).reduce((m,n)=>(m[n]=(m[n]||0)+1,m),{} as Record<number,number>);const hot=Object.entries(rows).sort((a,b)=>b[1]-a[1]||Number(a[0])-Number(b[0])).slice(0,6);
 return <section style={{background:'#192b3d',border:'1px solid #34485a',borderRadius:15,padding:17,display:'grid',gap:13}}>
- <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}><div><div style={{fontSize:10,letterSpacing:2,color:'#a9cfee'}}>HISTORICAL RESEARCH</div><h3 style={{fontSize:18,margin:'8px 0 0'}}>Lotto Texas Lab</h3></div><span style={{fontSize:10,color:'#b6c9d9',textAlign:'right'}}>Official archive sample<br/>Aug–Sep 2026</span></div>
+ <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}><div><div style={{fontSize:10,letterSpacing:2,color:'#a9cfee'}}>HISTORICAL RESEARCH</div><h3 style={{fontSize:18,margin:'8px 0 0'}}>Lotto Texas Lab</h3></div><span style={{fontSize:10,color:'#b6c9d9',textAlign:'right'}}>Official archive sample<br/>Sep–Oct 2026</span></div>
  <p style={{color:'#b4c6d4',fontSize:12,lineHeight:1.6,margin:0}}>Compare simple strategies on a small snapshot of official Lotto Texas drawings. Results describe this sample only—not future winning probabilities.</p>
  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{hot.map(([n,count])=><div key={n} style={{border:'1px solid #486078',padding:'8px 10px',borderRadius:10,textAlign:'center',minWidth:43}}><b style={{display:'block',fontSize:16}}>{n}</b><small style={{color:'#a7bacb',fontSize:9}}>{count}×</small></div>)}</div>
  <button onClick={()=>setOpen(v=>!v)} style={{cursor:'pointer',border:0,borderRadius:10,padding:12,background:'#a9cfee',color:'#102033',fontWeight:700}}>{open?'Hide backtest':'Compare strategies'}</button>
