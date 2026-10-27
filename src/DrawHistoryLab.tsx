@@ -1,4 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
+import HistoricalEstimate from './HistoricalEstimate';
 type Draw={date:string;nums:number[];bonus:number};
 type Archive={game:string;source:string;ruleStart:string;max:number;bonusMax:number;count:number;first:string;last:string;draws:Draw[]};
 const files:Record<string,string>={'Powerball':'powerball.json','Mega Millions':'mega-millions.json'};
@@ -21,7 +22,7 @@ export default function DrawHistoryLab({game}:{game:string}){
  <div style={{fontSize:10,color:'#a9cfee',letterSpacing:2}}>OFFICIAL DRAW HISTORY</div><strong style={{fontSize:18}}>{game} Lab</strong>
  {errors[game]?<p role="alert" style={{color:'#ffd1c5'}}>The official historical dataset could not load ({errors[game]}). No substitute numbers are shown.</p>:!data?<p>Loading verified official archive…</p>:<>
  <p style={{fontSize:12,color:'#bed0df',lineHeight:1.5,margin:0}}>{data.count.toLocaleString()} verified drawings · {data.first} to {data.last}. Only the current number format (from {data.ruleStart}) is compared.</p>
- {recommendation&&<div style={{background:'#112236',border:'1px solid #779ab6',borderRadius:12,padding:13,display:'grid',gap:8}}><strong style={{fontSize:13,color:'#b4d8f2'}}>MY PICK · LAST 100 DRAWS</strong><div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>{recommendation.main.map(n=><b key={n} style={{border:'1px solid #88abc4',background:'#213b52',borderRadius:30,padding:'8px 9px'}}>{n}</b>)}<span style={{fontSize:11}}>+</span><b style={{border:'1px solid #d0a57c',background:'#58422d',borderRadius:30,padding:'8px 9px'}}>{recommendation.bonus}</b></div><p style={{fontSize:12,color:'#bed0df',margin:0}}>Highest-frequency main numbers and bonus ball from the last {recommendation.n} drawings; a speculative choice, not a predictive edge.</p><div style={{fontSize:13}}>Actual jackpot probability: <b>1 in {game==='Powerball'?'292,201,338':'290,472,336'}</b></div><small style={{color:'#b2c7d8'}}>Any other valid combination has exactly the same jackpot probability.</small></div>}
+ <HistoricalEstimate draws={data.draws} max={data.max} bonusMax={data.bonusMax} pickCount={5} game={game}/>
  <label style={{display:'grid',gap:5,fontSize:12,color:'#a9cfee'}}>Historical range<select aria-label="Historical range" value={range} onChange={e=>{setRange(e.target.value);setExpanded(false)}} style={{padding:12,borderRadius:9,background:'#112033',color:'#f2f7fb',border:'1px solid #50647a',fontSize:15}}>{ranges.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
  <small style={{color:'#b3c9d9'}}>{draws.length.toLocaleString()} drawings in selected range</small>
  <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{frequent.map(v=><div key={v.n} style={{border:'1px solid #506980',borderRadius:9,padding:10,minWidth:45,textAlign:'center'}}><b>{v.n}</b><div style={{fontSize:10,color:'#a9cfee'}}>{v.hits}×</div></div>)}</div>
