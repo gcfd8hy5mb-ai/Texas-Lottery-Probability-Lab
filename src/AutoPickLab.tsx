@@ -2,8 +2,8 @@ import React,{useEffect,useState} from 'react';
 import PrizeTierLab from './PrizeTierLab';
 type Draw={date:string;nums:number[];bonus?:number};
 type Game={name:string;count:number;max:number;bonusMax?:number;ordered?:boolean};
-type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[]};
-type Result={picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number};
+type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[];stable:number;recent:number;tests:number;method:string};
+type Result={picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number;methodCount:number};
 const files:Record<string,string>={'Lotto Texas':'lotto-texas.json','Powerball':'powerball.json','Mega Millions':'mega-millions.json','Texas Two Step':'texas-two-step.json','Cash Five':'cash-five.json','All or Nothing':'all-or-nothing.json','Pick 3':'pick-3.json','Daily 4':'daily-4.json'};
 const panel:React.CSSProperties={background:'#192b3d',border:'1px solid #354c62',borderRadius:14,padding:14,display:'grid',gap:11};
 const light='#b6d4e8';
@@ -80,11 +80,12 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     'Historical performance against random expectation'
    ];
    const methods=[{name:'Hot frequency',mode:1},{name:'Cold frequency',mode:2},{name:'Recent weighting',mode:3},{name:'Gap weighting',mode:4}];
-   const periodLength=Math.max(10,Math.floor((train.length-30)/5));
+   const periodsToTest=10;
+   const periodLength=Math.max(6,Math.floor((train.length-30)/periodsToTest));
    const periodScores=methods.map(method=>{
     let wins=0,success=0,total=0;
-    for(let p=0;p<5;p++){
-     const start=Math.max(30,train.length-5*periodLength+p*periodLength),end=Math.min(train.length,start+periodLength);
+    for(let p=0;p<periodsToTest;p++){
+     const start=Math.max(30,train.length-periodsToTest*periodLength+p*periodLength),end=Math.min(train.length,start+periodLength);
      let hits=0;
      for(let i=start;i<end;i++){
       const history=draws.slice(Math.max(0,i-100),i),s=patterns(history,g);
@@ -93,10 +94,12 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
      }
      const n=end-start;if(n>0){total+=n;success+=hits;if(hits/n>expected)wins++;}
     }
-    return {name:method.name,wins,periods:5,rate:total?success/total:0,expected};
+    return {name:method.name,wins,periods:periodsToTest,rate:total?success/total:0,expected};
    });
    setStage('Searching distinct combinations');
    const seen=new Set<string>(),top:Candidate[]=[];
+   const mid=Math.floor(train.length/2),trainOlder=train.slice(0,mid),trainNewer=train.slice(mid);
+   const patternCounts=new Map<string,number>();
    const requested=g.ordered?Math.pow(10,g.count):Math.min(100000,Number(size));
    const limit=requested;
    // Keep the ordered games exhaustive; larger games use the selected search limit.
@@ -111,6 +114,9 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
      if(seen.has(key))continue;
      seen.add(key);
      const training=rateFor(nums,train,g,threshold);
+     const early=rateFor(nums,trainOlder,g,threshold),recent=rateFor(nums,trainNewer,g,threshold);
+     const earlyRate=early/Math.max(1,trainOlder.length),recentRate=recent/Math.max(1,trainNewer.length);
+     const stability=1-Math.min(1,Math.abs(earlyRate-recentRate));
      const pcount=parityCount(nums);
      const pairHit=stats.pair&&(g.ordered?false:stats.pair.split('-').every(n=>nums.includes(Number(n))))?1:0;
      const reasons:string[]=[];
@@ -121,11 +127,13 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
      if(hot)reasons.push(hot+' numbers/digits occurred above their expected frequency');
      if(cold)reasons.push(cold+' numbers/digits occurred below their expected frequency');
      if(gaps)reasons.push(gaps+' numbers/digits had longer-than-usual gaps');
-     const score=training/Math.max(1,train.length)+pairHit*.003+(pcount===stats.parity?.002:0)+hot*.0001;
-     if(top.length<30||score>top[top.length-1].score){
-      top.push({nums,bonus,train:training,hold:0,score,reasons:reasons.slice(0,3)});
+     const signals=Number(pcount===stats.parity)+Number(!!pairHit)+Number(hot>=Math.ceil(g.count/2))+Number(gaps>=Math.ceil(g.count/3));
+     const score=.65*(training/Math.max(1,train.length))+.25*Math.min(earlyRate,recentRate)+.08*stability+.02*signals/4;
+     const method=['Uniform random','Hot frequency','Cold frequency','Recent weighting','Gap weighting'][mode];
+     if(top.length<150||score>top[top.length-1].score){
+      top.push({nums,bonus,train:training,hold:0,score,reasons:reasons.slice(0,3),stable:stability,recent,tests:signals,method});
       top.sort((a,b)=>b.score-a.score||label(a.nums,g).localeCompare(label(b.nums,g)));
-      if(top.length>30)top.pop();
+      if(top.length>150)top.pop();
      }
     }
     setProgress(Math.min(100,Math.round(i/limit*100)));
@@ -133,15 +141,27 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     await new Promise<void>(resolve=>setTimeout(resolve,0));
    }
    // Discovery-only strategy tests and candidate ranking: do not peek at the holdout.
-   top.forEach(p=>p.hold=rateFor(p.nums,hold,g,threshold));
+   // The final five are selected only from discovery statistics and ranked BEFORE holdout.
+   // Different generation methods increase diversity, while the holdout remains untouched.
+   const winners:Candidate[]=[];
+   const usedMethods=new Set<string>();
+   for(const candidate of top){
+    if(winners.length>=5)break;
+    if(!usedMethods.has(candidate.method)){winners.push(candidate);usedMethods.add(candidate.method);}
+   }
+   for(const candidate of top){
+    if(winners.length>=5)break;
+    if(!winners.includes(candidate))winners.push(candidate);
+   }
+   winners.forEach(p=>p.hold=rateFor(p.nums,hold,g,threshold));
    let randomHold=0;
-   const randomTrials=hold.length*8;
-   for(let h=0;h<hold.length;h++)for(let r=0;r<8;r++){
+   const randomTrials=hold.length*64;
+   for(let h=0;h<hold.length;h++)for(let r=0;r<64;r++){
     const ticket=generate(g,prng((Math.imul(h+1,2246822519)^Math.imul(r+1,3266489917)^0x6da4e1d9)>>>0));
     if(match(ticket,hold[h],!!g.ordered)>=threshold)randomHold++;
    }
    setStage('Finalizing historical comparisons');
-   setResult({picks:top.slice(0,10),tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials});
+   setResult({picks:winners,tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials,methodCount:usedMethods.size});
    setProgress(100);
   }catch(e){setError(String(e));}finally{setRunning(false);}
  }
@@ -168,16 +188,19 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
   {!result&&!running&&<><div style={{...panel,background:'linear-gradient(130deg,#233c53,#192b3d)',borderColor:'#65849e'}}>
    <div style={{fontSize:11,letterSpacing:1.1,color:'#b3d8ef'}}>✦ COMPLETE ANALYSIS & AUTO PICK</div>
    <strong style={{fontSize:19}}>All your lottery tests. One button.</strong>
-   <p style={{fontSize:12,color:'#c6d8e5',lineHeight:1.65,margin:0}}>Scan the historical patterns, validate strategies on later drawings, search combinations, and rank up to 10 number choices.</p>
+   <p style={{fontSize:12,color:'#c6d8e5',lineHeight:1.65,margin:0}}>Scan the historical patterns, validate strategies on later drawings, search combinations, and compare the tests and rank five distinct number choices.</p>
   </div>
 
   <div style={panel}><b>2. Analysis settings — {game}</b><label style={{fontSize:12,color:light}}>Historical drawings<select disabled={loading} value={chosen} onChange={e=>setWindow(e.target.value)} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{counts.map(n=><option value={n} key={n}>Last {n.toLocaleString()} drawings</option>)}</select></label>
    <label style={{fontSize:12,color:light}}>Combinations to check<select value={requestedCount} onChange={e=>setSize(e.target.value)} disabled={!!g.ordered} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{comboOptions.map(n=><option key={n} value={n}>{n.toLocaleString()} {g.ordered?'(all ordered combinations)':'distinct attempts'}</option>)}</select></label>
    <small style={{color:'#afc9dc'}}>✓ Frequency, pairs, gaps, odd/even, multi-period checks and combination search included.</small>
   </div><div style={panel}><b>3. Run complete analysis</b><button disabled={loading||!!error} onClick={()=>{void run();}} style={{padding:14,border:'none',borderRadius:10,background:'#a9cfee',fontWeight:800,color:'#102235'}}>▶ Run All {game} Tests & Get Recommendations</button>{loading&&<small>Loading official drawings…</small>}{error&&<small style={{color:'#f0b6ae'}}>{error}</small>}</div></>}
-  {running&&<div style={panel}><div style={{fontSize:12,color:'#add0e6'}}>✦ RUNNING COMPLETE ANALYSIS</div><h3 style={{margin:0}}>{game}</h3><div style={{height:9,borderRadius:9,background:'#102033',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#a9cfee'}}/></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:light}}><span>{stage}</span><b>{progress}%</b></div>{['Number frequencies','Repeating pairs','Gaps and overdue numbers','Odd/even distributions','Five historical periods','Combination search','Recommendation ranking'].map((name,i)=><div key={name} style={{color:i<5||progress>i*15?'#cfe0ed':'#7c95aa',fontSize:12}}>{i<5||progress>i*15?'✓':'○'} {name}</div>)}</div>}
+  {running&&<div style={panel}><div style={{fontSize:12,color:'#add0e6'}}>✦ RUNNING COMPLETE ANALYSIS</div><h3 style={{margin:0}}>{game}</h3><div style={{height:9,borderRadius:9,background:'#102033',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#a9cfee'}}/></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:light}}><span>{stage}</span><b>{progress}%</b></div>{['Number frequencies','Repeating pairs','Gaps and overdue numbers','Odd/even distributions','Ten historical periods','Combination search','Recommendation ranking'].map((name,i)=><div key={name} style={{color:i<5||progress>i*15?'#cfe0ed':'#7c95aa',fontSize:12}}>{i<5||progress>i*15?'✓':'○'} {name}</div>)}</div>}
   {result&&<><div style={{...panel,borderColor:'#64829a'}}><strong style={{fontSize:17}}>✓ Analysis complete</strong><small style={{color:'#b9d2e3'}}>{game} · {result.tested.toLocaleString()} unique combinations · Through {result.lastDate}</small><button onClick={()=>{setResult(null);setProgress(0);}} style={{background:'#233e54',border:'1px solid #617f97',borderRadius:8,padding:10,color:'#e1f1fa'}}>Run another test / choose game</button></div>
    <div style={{...panel,borderColor:'#7294a9',background:'#142a3d',gap:9}}>
+    <b style={{fontSize:14,color:'#d9effb'}}>All-test comparison · top five</b>
+    <small style={{color:'#b8d5e8'}}>The ranking compares historical match rate, consistency between two discovery periods, pattern signals, and generation methods. Five candidates are selected before the unseen results are revealed.</small>
+    <small style={{color:'#c7e2f1'}}>Compared {result.tested.toLocaleString()} distinct entries, {result.periods.length} strategy families/checks, 10 chronological windows and {result.randomTrials.toLocaleString()} random controls.</small>
     <b style={{fontSize:14,color:'#d9effb'}}>Unseen-draw validity check</b>
     <small style={{color:'#b8d5e8'}}>Discovery: {result.train} draws through {result.discoveryEnd} · Unseen: {result.hold} later draws ({result.holdStart}–{result.lastDate}).</small>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -188,13 +211,13 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     <small style={{color:'#9fbacd',lineHeight:1.6}}>Bonus balls are excluded from this benchmark. Historical differences do not improve future odds for any valid combination.</small>
    </div>
    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5}}>{tabButton('picks','Top Picks')}{tabButton('patterns','Patterns Found')}{tabButton('tests','Test Results')}</div>
-   {detail==='picks'&&result.picks.map((p,i)=><div key={maskKey(p.nums,p.bonus)} style={panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{color:'#c8e5f8'}}>#{i+1} Recommended numbers</b><small style={{color:'#b6cedf'}}>Historical rank {i+1}/10</small></div><div style={{display:'flex',gap:5,flexWrap:'wrap'}}>{p.nums.map((n,j)=><span key={j} style={{height:33,minWidth:33,padding:4,borderRadius:22,display:'grid',placeItems:'center',background:'#263e52',border:'1px solid #7092ae',color:'white',fontWeight:700,fontSize:12}}>{n}</span>)}{p.bonus!==undefined&&<span style={{padding:8,borderRadius:20,background:'#694249',fontSize:12}}>+{p.bonus}</span>}</div><div style={{background:'#0f2537',borderRadius:9,padding:10,display:'grid',gap:5}}>
+   {detail==='picks'&&result.picks.map((p,i)=><div key={maskKey(p.nums,p.bonus)} style={panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{color:'#c8e5f8'}}>#{i+1} · Most relevant historical match</b><small style={{color:'#b6cedf'}}>Discovery rank {i+1}/5</small></div><div style={{display:'flex',gap:5,flexWrap:'wrap'}}>{p.nums.map((n,j)=><span key={j} style={{height:33,minWidth:33,padding:4,borderRadius:22,display:'grid',placeItems:'center',background:'#263e52',border:'1px solid #7092ae',color:'white',fontWeight:700,fontSize:12}}>{n}</span>)}{p.bonus!==undefined&&<span style={{padding:8,borderRadius:20,background:'#694249',fontSize:12}}>+{p.bonus}</span>}</div><div style={{background:'#0f2537',borderRadius:9,padding:10,display:'grid',gap:5}}>
        <small style={{color:'#b7d7ea'}}>Discovery: {p.train}/{result.train} · Unseen: {p.hold}/{result.hold} ({percent(p.hold/result.hold)})</small>
        <small style={{color:'#d9edfa'}}>Random expectation: {percent(result.expected)} · about {(result.hold*result.expected).toFixed(1)} of {result.hold} draws</small>
        <small style={{color:'#a9c7d9'}}>{Math.abs(p.hold-result.hold*result.expected)<=uncertainty(result.expected,result.hold)?'Within basic chance variation':'Outside basic chance variation; many tickets were searched, so this is not proof of predictive ability'}.</small>
-      </div><b style={{fontSize:11}}>Why this combination ranked highly:</b>{p.reasons.map((reason,j)=><small key={j} style={{color:'#b6cadb'}}>• {reason}</small>)}<small style={{color:'#96aabd'}}>Ranking score is based on past drawings, not future winning odds.</small><button onClick={()=>onSave(game,p.nums,p.bonus)} style={{padding:10,background:'#a9cfee',color:'#102033',border:'none',borderRadius:9,fontWeight:700}}>Save Pick</button></div>)}
+      </div><b style={{fontSize:11}}>Why it made the top five:</b>{[...p.reasons, 'Performed across two older discovery segments: '+p.train+'/'+result.train+' matches in total', 'Discovery stability score: '+(p.stable*100).toFixed(0)+'% (higher means similar match rates across discovery halves)', 'Selection approach: '+p.method].map((reason,j)=><small key={j} style={{color:'#b6cadb'}}>• {reason}</small>)}<small style={{color:'#96aabd'}}>Ranking score is based on past drawings, not future winning odds.</small><button onClick={()=>onSave(game,p.nums,p.bonus)} style={{padding:10,background:'#a9cfee',color:'#102033',border:'none',borderRadius:9,fontWeight:700}}>Save Pick</button></div>)}
    {detail==='patterns'&&<div style={panel}><b>Patterns tested</b>{result.patterns.map(p=><div key={p} style={{padding:'9px 0',borderBottom:'1px solid #354c62',fontSize:12,color:'#c6d9e8'}}>✓ {p}</div>)}<small style={{color:'#9fbacc'}}>These patterns occur naturally in random sequences and may not repeat. Strategy checks use discovery data only.</small></div>}
-   {detail==='tests'&&<div style={panel}><b>Strategy consistency: five chronological periods</b><small style={{color:light}}>Historical performance of automatically selected strategies. Rates measured against a random-draw expectation, not proof of an edge.</small>{result.periods.map(p=><div key={p.name} style={{borderTop:'1px solid #425d73',paddingTop:9,display:'grid',gap:3}}><div style={{display:'flex',justifyContent:'space-between'}}><b style={{fontSize:12}}>{p.name}</b><b style={{fontSize:12}}>{p.wins}/{p.periods} periods</b></div><small style={{color:'#accadb'}}>Observed match rate {(p.rate*100).toFixed(1)}% · Chance expectation {(p.expected*100).toFixed(1)}%</small></div>)}<small style={{color:'#9fbacc'}}>Strategy checks use only earlier discovery data; later unseen drawings are reserved for final validation. Testing several strategies can produce apparent advantages by chance.</small></div>}
+   {detail==='tests'&&<div style={panel}><b>Strategy consistency: ten chronological periods</b><small style={{color:light}}>Historical performance of automatically selected strategies. Rates measured against a random-draw expectation, not proof of an edge.</small>{result.periods.map(p=><div key={p.name} style={{borderTop:'1px solid #425d73',paddingTop:9,display:'grid',gap:3}}><div style={{display:'flex',justifyContent:'space-between'}}><b style={{fontSize:12}}>{p.name}</b><b style={{fontSize:12}}>{p.wins}/{p.periods} periods</b></div><small style={{color:'#accadb'}}>Observed match rate {(p.rate*100).toFixed(1)}% · Chance expectation {(p.expected*100).toFixed(1)}%</small></div>)}<small style={{color:'#9fbacc'}}>Strategy checks use only earlier discovery data; later unseen drawings are reserved for final validation. Testing several strategies can produce apparent advantages by chance.</small></div>}
   </>}
   <p style={{fontSize:11,color:'#9db4c6',lineHeight:1.6}}>No pattern or algorithm is known to predict fair lottery draws. Picks are historical ranking suggestions only. Saving does not purchase a ticket.</p>
  </div>;
