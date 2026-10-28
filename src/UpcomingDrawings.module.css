@@ -1,30 +1,44 @@
-/* Approved compact two-column layout: rows are horizontal, not stacked. */
+/* Approved two-column Home concept, sized for iPhone. Game art is cropped
+   from the user's approved mockup, not third-party hosted trademarks. */
 .section{display:grid;gap:10px}
-.heading h1{font-family:inherit!important;font-size:19px!important;font-weight:700!important;letter-spacing:.12em!important;text-transform:uppercase;color:#a9cfee!important;margin:0 0 5px!important}
-.heading p{font-size:12px;line-height:1.45;color:#a9bccd;margin:0}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
-.card{display:flex;flex-direction:column;gap:0;text-align:left;background:linear-gradient(125deg,#172c3e,#112334);border:1px solid #42617a;border-radius:12px;padding:10px;color:#eff6fc;cursor:pointer;min-width:0;box-shadow:inset 0 1px 0 #ffffff08}
-.card:active,.card:focus-visible{border-color:#a9cfee}
-.cardHead{display:grid;grid-template-columns:minmax(38px,60px) minmax(0,1fr) 15px;align-items:center;gap:7px;min-height:43px;padding-bottom:8px;border-bottom:1px solid #30485d}
-.cardHead>b{font-size:12px;line-height:1.2;min-width:0;font-weight:700}
-.cardHead svg{color:#a9cfee}
-.logo{font-size:10px;font-weight:900;letter-spacing:-.07em;color:#d2eafa;text-align:center;line-height:1.05;display:grid;place-items:center;min-height:27px;text-shadow:0 1px 2px #0009;max-width:60px}
-.logo[data-game='Lotto Texas']{font-family:Georgia,serif;font-size:18px;font-style:italic;color:#f4a77a;text-shadow:-1px 1px #763c33,1px -1px #763c33,0 2px 2px #000}
-.logo[data-game='Powerball']{font-size:8px;letter-spacing:-.055em;border-radius:14px;background:linear-gradient(100deg,#d9e0e5 78%,#a33f50 78%);color:#17273a;padding:6px 1px}
-.logo[data-game='Mega Millions']{font-size:15px;font-weight:900;font-style:italic;color:#edc96c;text-shadow:1px 2px #496c9b}
-.logo[data-game='Texas Two Step']{font-size:11px;color:#e5eefa;letter-spacing:-.03em;text-shadow:2px 2px #934548}
-.logo[data-game='Cash Five']{font-style:italic;font-size:11px;color:#d4df69;text-shadow:1px 2px #276a97}
-.logo[data-game='All or Nothing']{font-size:9px;background:linear-gradient(110deg,#b2a36e,#e5d69a,#967d4c);color:#162638;border-radius:4px;padding:5px 3px;letter-spacing:-.06em}
-.logo[data-game='Pick 3']{font-style:italic;font-size:15px;color:#9fdab0;text-shadow:1px 2px #325d65}
-.logo[data-game='Daily 4']{font-style:italic;font-size:15px;color:#d5a6e5;text-shadow:1px 2px #694c81}
-.field{display:grid;grid-template-columns:14px minmax(50px,.8fr) minmax(0,1.2fr);gap:5px;align-items:start;border-bottom:1px solid #293f53;padding:9px 0}
-.field:last-of-type{border:0;padding-bottom:3px}
-.field svg{color:#a8cfee;grid-column:1;grid-row:1;margin-top:2px}
-.field>span{color:#aac3d6;font-size:8px;text-transform:uppercase;letter-spacing:0;grid-column:2;grid-row:1;padding-top:3px;white-space:nowrap}
-.field strong{font-size:11px;line-height:1.25;grid-column:3;grid-row:1;font-weight:700;overflow-wrap:break-word}
-.field small{display:block;font-size:9px;color:#a8c7dd;font-weight:400;margin-top:4px}
-.session{color:#99b9cd;font-size:9px;padding-top:2px}
-.note{font-size:10px;line-height:1.6;color:#9fb7c9;margin:0}
-.source{color:#b4d8ed;display:flex;gap:6px;align-items:center;text-decoration:none;font-size:11px}
-@media(min-width:420px){.card{padding:12px}.field{grid-template-columns:15px minmax(65px,.85fr) minmax(0,1.15fr);gap:6px}.field>span{font-size:9px}.field strong{font-size:12px}.cardHead>b{font-size:13px}}
-@media(max-width:365px){.grid{gap:7px}.card{padding:8px}.cardHead{grid-template-columns:minmax(32px,48px) minmax(0,1fr) 13px;gap:4px}.cardHead>b{font-size:11px}.field{grid-template-columns:12px minmax(45px,.85fr) minmax(0,1.15fr);gap:4px}.field>span{font-size:7px}.field strong{font-size:10px}.logo{max-width:47px;font-size:9px}.logo[data-game='Lotto Texas']{font-size:16px}.logo[data-game='Mega Millions']{font-size:12px}}
+.heading h1{font-family:inherit!important;font-size:19px!important;font-weight:700!important;letter-spacing:.115em!important;text-transform:uppercase;color:#a7d4f4!important;margin:0 0 4px!important}
+.heading p{font-size:12px;line-height:1.42;color:#bfd1dd;margin:0 0 2px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-items:stretch}
+.card{display:flex;flex-direction:column;gap:0;text-align:left;background:linear-gradient(132deg,#1a3042,#0e2030);border:1px solid #4a667d;border-radius:13px;padding:10px;color:#edf4fa;cursor:pointer;min-width:0;box-shadow:inset 0 1px 0 #ffffff0a}
+.card:active,.card:focus-visible{border-color:#9cccee;outline-color:#9cccee}
+.cardHead{display:grid;grid-template-columns:63px minmax(0,1fr) 12px;align-items:center;column-gap:4px;min-height:40px;padding-bottom:7px;border-bottom:1px solid #314659}
+.cardHead>b{font-size:11px;line-height:1.17;min-width:0;font-weight:700;color:#e4eef7}
+.cardHead svg{color:#a7d4f2;width:14px;height:14px}
+.logo{width:63px;height:31px;display:block;background-repeat:no-repeat;background-size:400% 200%;background-position:0 0;flex-shrink:0;color:transparent;font-size:0}
+.logo[data-game='Lotto Texas']{background-position:0% 0%}
+.logo[data-game='Powerball']{background-position:33.333% 0%}
+.logo[data-game='Mega Millions']{background-position:66.666% 0%}
+.logo[data-game='Texas Two Step']{background-position:100% 0%}
+.logo[data-game='Cash Five']{background-position:0% 100%}
+.logo[data-game='All or Nothing']{background-position:33.333% 100%}
+.logo[data-game='Pick 3']{background-position:66.666% 100%}
+.logo[data-game='Daily 4']{background-position:100% 100%}
+.field{display:grid;grid-template-columns:13px minmax(0,57px) minmax(0,1fr);gap:4px;align-items:start;border-bottom:1px solid #2f4556;padding:7px 0;min-width:0}
+.field:last-of-type{border:0;padding-bottom:2px}
+.field svg{color:#a7d7f3;grid-column:1;grid-row:1;width:12px;height:13px;margin-top:1px}
+.field>span{color:#a6c4d8;font-size:8px;line-height:1.3;text-transform:uppercase;letter-spacing:0;grid-column:2;grid-row:1;padding-top:1px;white-space:nowrap}
+.field strong{font-size:11px;line-height:1.18;grid-column:3;grid-row:1;font-weight:600;color:#f2f7fb;overflow-wrap:normal;min-width:0}
+.field small{display:block;font-size:9px;line-height:1.25;color:#a6cee6;font-weight:400;margin-top:3px}
+.session{color:#9ec5dd;font-size:9px;padding:2px 0 0 17px}
+.note{font-size:10px;line-height:1.5;color:#9fb7c9;margin:0}
+.source{color:#a9d4f2;display:flex;gap:6px;align-items:center;text-decoration:none;font-size:11px}
+@media(min-width:415px){
+ .card{padding:12px}
+ .cardHead{grid-template-columns:73px minmax(0,1fr) 14px;gap:5px}
+ .logo{width:73px;height:35px}
+ .cardHead>b{font-size:12px}
+ .field{grid-template-columns:14px minmax(0,67px) minmax(0,1fr);gap:5px}
+ .field>span{font-size:9px}.field strong{font-size:12px}
+}
+@media(max-width:360px){
+ .grid{gap:7px}.card{padding:7px}
+ .cardHead{grid-template-columns:52px minmax(0,1fr) 11px;gap:3px}
+ .logo{width:52px;height:27px}.cardHead>b{font-size:10px}
+ .field{grid-template-columns:11px minmax(0,47px) minmax(0,1fr);gap:3px}
+ .field>span{font-size:7px}.field strong{font-size:10px}
+}
