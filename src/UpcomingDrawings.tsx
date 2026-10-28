@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {CalendarDays,Ticket,Trophy,ChevronRight,ExternalLink} from 'lucide-react';
 import styles from './UpcomingDrawings.module.css';
+import approvedLogos from './assets/approved-game-logos.svg';
 
 type Jackpot={amount:string;date:string};
 type Snapshot={checkedAt:string;jackpots:Record<string,Jackpot>};
@@ -45,14 +46,14 @@ export default function UpcomingDrawings({onGame}:{onGame:(name:string)=>void}){
  const checkDate=snapshot?new Date(snapshot.checkedAt):null;
  const stale=!checkDate||now.getTime()-checkDate.getTime()>36*3600*1000;
  return <section className={styles.section}>
-  <div className={styles.heading}><h1>Upcoming drawings</h1><p>Next drawing, base play price and jackpot or top prize for each game.</p></div>
+  <div className={styles.heading}><h1>Upcoming drawings</h1><p>Next drawing dates, ticket prices, and current jackpots for each game.</p></div>
   <div className={styles.grid}>{games.map(g=>{
    const next=nextDate(g,now);
    const pot=snapshot?.jackpots[g.name];
    const matches=!!pot&&!!next&&pot.date===new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(next.timestamp).replace(/(\d\d)\/(\d\d)\/(\d{4})/,'$3-$1-$2');
    const jackpot=g.top==='Rolling jackpot'?(pot&&matches&&!stale?pot.amount:'Check current jackpot'):g.top;
-   return <button type="button" key={g.name} className={styles.card} onClick={()=>onGame(g.name)} aria-label={'Analyze '+g.name}>
-    <div className={styles.cardHead}><span className={styles.logo} data-game={g.name}>{g.short}</span><b>{g.name}</b><ChevronRight size={17}/></div>
+   return <button type="button" key={g.name} className={styles.card} onClick={()=>onGame(g.name)} aria-label={'Run all '+g.name+' tests in Auto Pick'}>
+    <div className={styles.cardHead}><span className={styles.logo} data-game={g.name} style={{backgroundImage:`url(${approvedLogos})`}} role="img" aria-label={g.name+" illustrated logo"}></span><b>{g.name}</b><ChevronRight size={17}/></div>
     <div className={styles.field}><CalendarDays size={15}/><span>Next draw</span><strong>{next?.date||'View schedule'}<small>{next?.time}</small></strong></div>
     <div className={styles.field}><Ticket size={15}/><span>Ticket</span><strong>{g.price}</strong></div>
     <div className={styles.field}><Trophy size={15}/><span>{g.top==='Rolling jackpot'?'Jackpot':'Top prize'}</span><strong>{jackpot}{g.top==='Rolling jackpot'&&pot&&matches&&!stale?<small>{g.name==='Texas Two Step'?'Advertised jackpot':'Estimated annuity'}</small>:null}</strong></div>
