@@ -54,7 +54,7 @@ function wilson(success:number,n:number){if(!n)return [0,1];const z=1.96,q=succe
 function label(nums:number[],g:Game){return g.ordered?nums.join(''):nums.join(' · ');}
 function parityCount(nums:number[]){return nums.filter(n=>n%2).length;}
 export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{games:Game[];onSave:(game:string,nums:number[],bonus?:number)=>void;initialGame?:string}){
- const [game,setGame]=useState(initialGame),[window,setWindow]=useState('500'),[size,setSize]=useState('10000');
+ const [game,setGame]=useState(initialGame),[window,setWindow]=useState('500'),[size,setSize]=useState('50000');
  const [prizeOpen,setPrizeOpen]=useState(true);
  const [data,setData]=useState<Draw[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const [running,setRunning]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[result,setResult]=useState<Result|null>(null),[detail,setDetail]=useState<'picks'|'patterns'|'tests'>('picks');
@@ -62,14 +62,14 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
  useEffect(()=>{let active=true;setLoading(true);setData([]);setResult(null);setError('');
  fetch(import.meta.env.BASE_URL+'data/'+files[game],{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('History file unavailable');return r.json()}).then(v=>{if(active){if(!Array.isArray(v.draws)||v.draws.length<50)throw Error('Not enough valid drawings');setData(v.draws);setLoading(false);}}).catch(e=>{if(active){setError(String(e.message||e));setLoading(false);}});return()=>{active=false;};},[game]);
  const counts=[100,250,500,1000,2000].filter(n=>n<=data.length),chosen=counts.includes(Number(window))?Number(window):counts[counts.length-1]||0;
- const comboOptions=g.ordered?[Math.pow(10,g.count)]:[1000,5000,10000,25000,50000,100000];
+ const comboOptions=g.ordered?[Math.pow(10,g.count)]:[10000,25000,50000,100000,150000,250000];
  const requestedCount=g.ordered?Math.pow(10,g.count):Number(size);
  function selectGame(name:string){
   if(running||name===game)return;
   setGame(name);setPrizeOpen(true);setResult(null);setProgress(0);setDetail('picks');setStage('');setError('');
   // Draw options are re-evaluated from each game's verified historical archive.
   setWindow('500');
-  setSize('10000');
+  setSize('50000');
  }
  async function run(){
   if(running||loading||!chosen)return;
@@ -108,12 +108,12 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    setStage('Searching distinct combinations');
    const seen=new Set<string>(),top:Candidate[]=[];
    const mid=Math.floor(train.length/2),trainOlder=train.slice(0,mid),trainNewer=train.slice(mid);
-   const patternCounts=new Map<string,number>();
-   const requested=g.ordered?Math.pow(10,g.count):Math.min(100000,Number(size));
+   // History is sorted into two discovery halves for consistency scoring.
+   const requested=g.ordered?Math.pow(10,g.count):Math.min(250000,Math.max(10000,Number(size)||50000));
    const limit=requested;
    // Keep the ordered games exhaustive; larger games use the selected search limit.
    for(let i=0;i<limit;){
-    const end=Math.min(i+200,limit);
+    const end=Math.min(i+150,limit);
     while(i<end){
      const mode=i%5;
      const nums=g.ordered?Array.from({length:g.count},(_,p)=>Math.floor(i/Math.pow(10,g.count-1-p))%10):generate(g,next,mode?weightsFor(g,stats,mode):undefined);
@@ -122,8 +122,15 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
      i++;
      if(seen.has(key))continue;
      seen.add(key);
-     const training=rateFor(nums,train,g,threshold);
-     const early=rateFor(nums,trainOlder,g,threshold),recent=rateFor(nums,trainNewer,g,threshold);
+     // Count each historical drawing once rather than rescanning the full
+     // training set for the older and newer half. This reduces mobile CPU work.
+     let early=0,recent=0;
+     for(let j=0;j<train.length;j++){
+      if(match(nums,train[j],!!g.ordered)>=threshold){
+       if(j<mid)early++;else recent++;
+      }
+     }
+     const training=early+recent;
      const earlyRate=early/Math.max(1,trainOlder.length),recentRate=recent/Math.max(1,trainNewer.length);
      const stability=1-Math.min(1,Math.abs(earlyRate-recentRate));
      const pcount=parityCount(nums);
@@ -247,7 +254,7 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
 
   <div style={panel}><b>2. Analysis settings — {game}</b><label style={{fontSize:12,color:light}}>Historical drawings<select disabled={loading} value={chosen} onChange={e=>setWindow(e.target.value)} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{counts.map(n=><option value={n} key={n}>Last {n.toLocaleString()} drawings</option>)}</select></label>
    <label style={{fontSize:12,color:light}}>Combinations to check<select value={requestedCount} onChange={e=>setSize(e.target.value)} disabled={!!g.ordered} style={{display:'block',width:'100%',padding:12,marginTop:6,borderRadius:9,background:'#102235',color:'#e9f5ff',border:'1px solid #536e87'}}>{comboOptions.map(n=><option key={n} value={n}>{n.toLocaleString()} {g.ordered?'(all ordered combinations)':'distinct attempts'}</option>)}</select></label>
-   <small style={{color:'#afc9dc'}}>✓ Frequency, pairs, gaps, odd/even, exact probability, full distributions, 50,000 simulated draws, independent-draw binomial checks, 10-period backtesting, random controls and top-five ranking.</small>
+   <small style={{color:'#afc9dc'}}>✓ Up to 250,000 combination attempts (default 50,000). Frequency, pairs, gaps, odd/even, exact probability, full distributions, 50,000 simulated draws, independent-draw binomial checks, 10-period backtesting, random controls and top-five ranking.</small>
   </div><div style={panel}><b>3. Run complete analysis</b><button disabled={loading||!!error} onClick={()=>{void run();}} style={{padding:14,border:'none',borderRadius:10,background:'#a9cfee',fontWeight:800,color:'#102235'}}>▶ Run All {game} Tests & Get Recommendations</button>{loading&&<small>Loading official drawings…</small>}{error&&<small style={{color:'#f0b6ae'}}>{error}</small>}</div></>}
   {running&&<div style={panel}><div style={{fontSize:12,color:'#add0e6'}}>✦ RUNNING COMPLETE ANALYSIS</div><h3 style={{margin:0}}>{game}</h3><div style={{height:9,borderRadius:9,background:'#102033',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#a9cfee'}}/></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:light}}><span>{stage}</span><b>{progress}%</b></div>{['Number frequencies','Repeating pairs','Gaps and overdue numbers','Odd/even distributions','Ten historical periods','Combination search','Mathematical distributions and simulations','Recommendation ranking'].map((name,i)=><div key={name} style={{color:i<5||progress>i*15?'#cfe0ed':'#7c95aa',fontSize:12}}>{i<5||progress>i*15?'✓':'○'} {name}</div>)}</div>}
   {result&&<><div style={{...panel,borderColor:'#64829a'}}><strong style={{fontSize:17}}>✓ Analysis complete</strong><small style={{color:'#b9d2e3'}}>{game} · {result.tested.toLocaleString()} unique combinations · Through {result.lastDate}</small><button onClick={()=>{setResult(null);setProgress(0);}} style={{background:'#233e54',border:'1px solid #617f97',borderRadius:8,padding:10,color:'#e1f1fa'}}>Run another test / choose game</button></div>
