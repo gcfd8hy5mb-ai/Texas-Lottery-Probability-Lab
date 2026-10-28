@@ -3,7 +3,7 @@ import PrizeTierLab from './PrizeTierLab';
 type Draw={date:string;nums:number[];bonus?:number};
 type Game={name:string;count:number;max:number;bonusMax?:number;ordered?:boolean};
 type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[];stable:number;recent:number;tests:number;method:string};
-type Result={picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number;methodCount:number};
+type Result={picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number;methodCount:number;portfolio:{observed:number;controls:number;mean:number;lower:number;upper:number;tail:number;draws:number}};
 const files:Record<string,string>={'Lotto Texas':'lotto-texas.json','Powerball':'powerball.json','Mega Millions':'mega-millions.json','Texas Two Step':'texas-two-step.json','Cash Five':'cash-five.json','All or Nothing':'all-or-nothing.json','Pick 3':'pick-3.json','Daily 4':'daily-4.json'};
 const panel:React.CSSProperties={background:'#192b3d',border:'1px solid #354c62',borderRadius:14,padding:14,display:'grid',gap:11};
 const light='#b6d4e8';
@@ -43,6 +43,7 @@ function chance(g:Game,threshold:number){let a=0;const choose=(n:number,k:number
 }
 function percent(p:number){return (100*p).toFixed(p<.001?3:1)+'%';}
 function uncertainty(p:number,n:number){return 1.96*Math.sqrt(n*p*(1-p));}
+function wilson(success:number,n:number){if(!n)return [0,1];const z=1.96,q=success/n,den=1+z*z/n,mid=(q+z*z/(2*n))/den,half=z*Math.sqrt(q*(1-q)/n+z*z/(4*n*n))/den;return [Math.max(0,mid-half),Math.min(1,mid+half)];}
 function label(nums:number[],g:Game){return g.ordered?nums.join(''):nums.join(' · ');}
 function parityCount(nums:number[]){return nums.filter(n=>n%2).length;}
 export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{games:Game[];onSave:(game:string,nums:number[],bonus?:number)=>void;initialGame?:string}){
@@ -160,8 +161,32 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     const ticket=generate(g,prng((Math.imul(h+1,2246822519)^Math.imul(r+1,3266489917)^0x6da4e1d9)>>>0));
     if(match(ticket,hold[h],!!g.ordered)>=threshold)randomHold++;
    }
+   // Compare the entire preselected five-ticket portfolio to 256 equally sized
+   // random portfolios on the untouched holdout, preserving within-draw overlap.
+   // This is a descriptive randomization comparison, not future predictive evidence.
+   setStage('Calibrating top five against 256 random portfolios');
+   const observed=winners.reduce((sum,p)=>sum+p.hold,0);
+   const controls:number[]=[];
+   for(let simulation=0;simulation<256;simulation++){
+    const nextControl=prng((0x51f3a1d7^Math.imul(simulation+1,2654435761))>>>0);
+    const controlTickets:{nums:number[];bonus?:number}[]=[];
+    const unique=new Set<string>();
+    while(controlTickets.length<winners.length){
+     const nums=generate(g,nextControl);
+     const key=maskKey(nums);
+     if(unique.has(key))continue;
+     unique.add(key);
+     controlTickets.push({nums});
+    }
+    let successes=0;
+    for(const ticket of controlTickets)successes+=rateFor(ticket.nums,hold,g,threshold);
+    controls.push(successes);
+    if(simulation%16===15)await new Promise<void>(resolve=>setTimeout(resolve,0));
+   }
+   const sorted=[...controls].sort((a,b)=>a-b);
+   const portfolio={observed,controls:controls.length,mean:controls.reduce((a,b)=>a+b,0)/controls.length,lower:sorted[Math.floor(.025*(sorted.length-1))],upper:sorted[Math.ceil(.975*(sorted.length-1))],tail:(controls.filter(x=>x>=observed).length+1)/(controls.length+1),draws:hold.length};
    setStage('Finalizing historical comparisons');
-   setResult({picks:winners,tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials,methodCount:usedMethods.size});
+   setResult({picks:winners,tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials,methodCount:usedMethods.size,portfolio});
    setProgress(100);
   }catch(e){setError(String(e));}finally{setRunning(false);}
  }
@@ -200,7 +225,7 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    <div style={{...panel,borderColor:'#7294a9',background:'#142a3d',gap:9}}>
     <b style={{fontSize:14,color:'#d9effb'}}>All-test comparison · top five</b>
     <small style={{color:'#b8d5e8'}}>The ranking compares historical match rate, consistency between two discovery periods, pattern signals, and generation methods. Five candidates are selected before the unseen results are revealed.</small>
-    <small style={{color:'#c7e2f1'}}>Compared {result.tested.toLocaleString()} distinct entries, {result.periods.length} strategy families/checks, 10 chronological windows and {result.randomTrials.toLocaleString()} random controls.</small>
+    <small style={{color:'#c7e2f1'}}>Compared {result.tested.toLocaleString()} distinct entries, {result.periods.length} strategy families/checks, 10 chronological windows, {result.randomTrials.toLocaleString()} random control tickets, and {result.portfolio.controls} independent random portfolios.</small>
     <b style={{fontSize:14,color:'#d9effb'}}>Unseen-draw validity check</b>
     <small style={{color:'#b8d5e8'}}>Discovery: {result.train} draws through {result.discoveryEnd} · Unseen: {result.hold} later draws ({result.holdStart}–{result.lastDate}).</small>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -208,11 +233,19 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
       <div style={{background:'#1f3b50',padding:10,borderRadius:9}}><small>Random control</small><strong style={{display:'block',marginTop:5,fontSize:19}}>{percent(result.randomHold/result.randomTrials)}</strong><small>{result.randomHold}/{result.randomTrials} trials</small></div>
     </div>
     <small style={{color:'#b0cade',lineHeight:1.55}}>A fixed ticket would average {(result.hold*result.expected).toFixed(1)} qualifying matches in {result.hold} draws. An approximate 95% random-noise range for one preselected ticket is {Math.max(0,result.hold*result.expected-uncertainty(result.expected,result.hold)).toFixed(1)}–{(result.hold*result.expected+uncertainty(result.expected,result.hold)).toFixed(1)} matches; this does not adjust for searching thousands of tickets.</small>
+    <div style={{display:'grid',gap:6,borderTop:'1px solid #47637a',paddingTop:10}}>
+      <b style={{fontSize:13,color:'#d2e9f7'}}>Top-five portfolio vs random portfolios</b>
+      <small style={{color:'#c0d8e9'}}>Your 5 selected combinations: <b>{result.portfolio.observed}</b> qualifying line-results across {result.hold} unseen draws.</small>
+      <small style={{color:'#c0d8e9'}}>Random groups of five: average <b>{result.portfolio.mean.toFixed(1)}</b>; middle 95% ranged from <b>{result.portfolio.lower} to {result.portfolio.upper}</b> line-results.</small>
+      <small style={{color:'#b2d2e6'}}>In {result.portfolio.controls} random portfolios, the estimated fraction matching or exceeding the selected result was <b>{percent(result.portfolio.tail)}</b> (including a conservative one-sample adjustment).</small>
+      <small style={{color:'#9fbacd',lineHeight:1.55}}>This comparison preserves correlations between tickets within each drawing. It is descriptive, not a formal multiple-testing-adjusted p-value. Repeatedly checking the same holdout reduces its value as an independent test.</small>
+    </div>
     <small style={{color:'#9fbacd',lineHeight:1.6}}>Bonus balls are excluded from this benchmark. Historical differences do not improve future odds for any valid combination.</small>
    </div>
    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5}}>{tabButton('picks','Top Picks')}{tabButton('patterns','Patterns Found')}{tabButton('tests','Test Results')}</div>
    {detail==='picks'&&result.picks.map((p,i)=><div key={maskKey(p.nums,p.bonus)} style={panel}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><b style={{color:'#c8e5f8'}}>#{i+1} · Most relevant historical match</b><small style={{color:'#b6cedf'}}>Discovery rank {i+1}/5</small></div><div style={{display:'flex',gap:5,flexWrap:'wrap'}}>{p.nums.map((n,j)=><span key={j} style={{height:33,minWidth:33,padding:4,borderRadius:22,display:'grid',placeItems:'center',background:'#263e52',border:'1px solid #7092ae',color:'white',fontWeight:700,fontSize:12}}>{n}</span>)}{p.bonus!==undefined&&<span style={{padding:8,borderRadius:20,background:'#694249',fontSize:12}}>+{p.bonus}</span>}</div><div style={{background:'#0f2537',borderRadius:9,padding:10,display:'grid',gap:5}}>
        <small style={{color:'#b7d7ea'}}>Discovery: {p.train}/{result.train} · Unseen: {p.hold}/{result.hold} ({percent(p.hold/result.hold)})</small>
+       <small style={{color:'#d9edfa'}}>Approx. 95% interval for unseen match rate: {percent(wilson(p.hold,result.hold)[0])}–{percent(wilson(p.hold,result.hold)[1])}</small>
        <small style={{color:'#d9edfa'}}>Random expectation: {percent(result.expected)} · about {(result.hold*result.expected).toFixed(1)} of {result.hold} draws</small>
        <small style={{color:'#a9c7d9'}}>{Math.abs(p.hold-result.hold*result.expected)<=uncertainty(result.expected,result.hold)?'Within basic chance variation':'Outside basic chance variation; many tickets were searched, so this is not proof of predictive ability'}.</small>
       </div><b style={{fontSize:11}}>Why it made the top five:</b>{[...p.reasons, 'Performed across two older discovery segments: '+p.train+'/'+result.train+' matches in total', 'Discovery stability score: '+(p.stable*100).toFixed(0)+'% (higher means similar match rates across discovery halves)', 'Selection approach: '+p.method].map((reason,j)=><small key={j} style={{color:'#b6cadb'}}>• {reason}</small>)}<small style={{color:'#96aabd'}}>Ranking score is based on past drawings, not future winning odds.</small><button onClick={()=>onSave(game,p.nums,p.bonus)} style={{padding:10,background:'#a9cfee',color:'#102033',border:'none',borderRadius:9,fontWeight:700}}>Save Pick</button></div>)}
