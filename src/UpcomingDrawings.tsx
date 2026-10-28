@@ -52,7 +52,7 @@ export default function UpcomingDrawings({onGame}:{onGame:(name:string)=>void}){
    const matches=!!pot&&!!next&&pot.date===new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(next.timestamp).replace(/(\d\d)\/(\d\d)\/(\d{4})/,'$3-$1-$2');
    const jackpot=g.top==='Rolling jackpot'?(pot&&matches&&!stale?pot.amount:'Check current jackpot'):g.top;
    return <button type="button" key={g.name} className={styles.card} onClick={()=>onGame(g.name)} aria-label={'Analyze '+g.name}>
-    <div className={styles.cardHead}><span className={styles.logo}>{g.short}</span><b>{g.name}</b><ChevronRight size={17}/></div>
+    <div className={styles.cardHead}><span className={styles.logo} data-game={g.name}>{g.short}</span><b>{g.name}</b><ChevronRight size={17}/></div>
     <div className={styles.field}><CalendarDays size={15}/><span>Next draw</span><strong>{next?.date||'View schedule'}<small>{next?.time}</small></strong></div>
     <div className={styles.field}><Ticket size={15}/><span>Ticket</span><strong>{g.price}</strong></div>
     <div className={styles.field}><Trophy size={15}/><span>{g.top==='Rolling jackpot'?'Jackpot':'Top prize'}</span><strong>{jackpot}{g.top==='Rolling jackpot'&&pot&&matches&&!stale?<small>{g.name==='Texas Two Step'?'Advertised jackpot':'Estimated annuity'}</small>:null}</strong></div>
