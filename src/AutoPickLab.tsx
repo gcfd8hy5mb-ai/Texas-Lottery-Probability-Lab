@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from 'react';
+import PrizeTierLab from './PrizeTierLab';
 type Draw={date:string;nums:number[];bonus?:number};
 type Game={name:string;count:number;max:number;bonusMax?:number;ordered?:boolean};
 type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[]};
@@ -44,6 +45,7 @@ function label(nums:number[],g:Game){return g.ordered?nums.join(''):nums.join(' 
 function parityCount(nums:number[]){return nums.filter(n=>n%2).length;}
 export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{games:Game[];onSave:(game:string,nums:number[],bonus?:number)=>void;initialGame?:string}){
  const [game,setGame]=useState(initialGame),[window,setWindow]=useState('500'),[size,setSize]=useState('10000');
+ const [prizeOpen,setPrizeOpen]=useState(true);
  const [data,setData]=useState<Draw[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const [running,setRunning]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[result,setResult]=useState<Result|null>(null),[detail,setDetail]=useState<'picks'|'patterns'|'tests'>('picks');
  const g=games.find(v=>v.name===game)!;
@@ -54,7 +56,7 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
  const requestedCount=g.ordered?Math.pow(10,g.count):Number(size);
  function selectGame(name:string){
   if(running||name===game)return;
-  setGame(name);setResult(null);setProgress(0);setDetail('picks');setStage('');setError('');
+  setGame(name);setPrizeOpen(true);setResult(null);setProgress(0);setDetail('picks');setStage('');setError('');
   // Draw options are re-evaluated from each game's verified historical archive.
   setWindow('500');
   setSize('10000');
@@ -147,6 +149,14 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    </div>
    <small style={{color:'#aecce0'}}>Selected: <b style={{color:'#e5f4ff'}}>{game}</b>. The settings and full test below apply only to this game.</small>
   </div>
+  <div style={{...panel,gap:8,borderColor:'#7193ac'}}>
+    <button type="button" aria-expanded={prizeOpen} onClick={()=>setPrizeOpen(v=>!v)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,background:'transparent',border:0,padding:'2px 0',color:'#e2f2fc',fontWeight:750,fontSize:14,textAlign:'left'}}>
+      <span>🏆 {game} prize odds & payouts</span>
+      <span style={{fontSize:11,color:'#b1d2e8'}}>{prizeOpen?'Hide details ▲':'Show details ▼'}</span>
+    </button>
+    {!prizeOpen&&<small style={{color:'#b9cfe0'}}>Tap to see prize tiers, paid-prize odds, and estimated payouts before running tests.</small>}
+    {prizeOpen&&<><small style={{color:'#b8d3e5',fontSize:11}}>Published prize information for your selected game. This is separate from historical Auto Pick recommendations.</small><PrizeTierLab game={game} lines={1} draws={1}/></>}
+   </div>
   {!result&&!running&&<><div style={{...panel,background:'linear-gradient(130deg,#233c53,#192b3d)',borderColor:'#65849e'}}>
    <div style={{fontSize:11,letterSpacing:1.1,color:'#b3d8ef'}}>✦ COMPLETE ANALYSIS & AUTO PICK</div>
    <strong style={{fontSize:19}}>All your lottery tests. One button.</strong>
