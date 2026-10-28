@@ -1,5 +1,6 @@
 import React,{useMemo,useState} from 'react';
 import PrizeTierLab from './PrizeTierLab';
+import AdvancedMathLab from './AdvancedMathLab';
 type Rule={name:string;main:number;pool:number;bonus?:number;price?:number;ordered?:boolean;special?:boolean;source:string};
 const rules:Rule[]=[
  {name:'Lotto Texas',main:6,pool:54,price:1,source:'https://www.texaslottery.com/export/sites/lottery/Games/Lotto_Texas/index.html'},
@@ -104,6 +105,7 @@ export default function ExactOddsLab({defaultGame}:{defaultGame:string}){
    <div style={{height:8,borderRadius:8,background:'#0c1e2c',overflow:'hidden'}}><div style={{height:'100%',width:(v.probability*100)+'%',background:'#9ccbeb'}}/></div>
    <span style={{textAlign:'right'}}>{formatProbability(v.probability)}</span>
   </div>)}</div>}
+  <AdvancedMathLab key={chosen} game={chosen}/>
   <PrizeTierLab game={chosen} lines={nLines} draws={nDraws}/>
   <small style={{fontSize:10,lineHeight:1.6,color:'#9cb8cb'}}>Match distribution uses exact combinatorics ({g.ordered?'independent ordered digits':'hypergeometric draws without replacement'}). Jackpot figures assume the currently displayed game matrix. This does not estimate expected payouts, taxes, fees or the chance of any paid prize across all wager types. {g.ordered?'Digit wager pricing varies by bet type and amount.':''}</small>
   <a href={g.source} target="_blank" rel="noreferrer" style={{color:'#b4d5eb',fontSize:12,textDecoration:'underline'}}>Check official game rules and prizes ↗</a>
