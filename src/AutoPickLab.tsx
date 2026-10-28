@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import PrizeTierLab from './PrizeTierLab';
+import AdvancedMathLab from './AdvancedMathLab';
 type Draw={date:string;nums:number[];bonus?:number};
 type Game={name:string;count:number;max:number;bonusMax?:number;ordered?:boolean};
 type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[];stable:number;recent:number;tests:number;method:string};
@@ -210,6 +211,7 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     {!prizeOpen&&<small style={{color:'#b9cfe0'}}>Tap to see prize tiers, paid-prize odds, and estimated payouts before running tests.</small>}
     {prizeOpen&&<><small style={{color:'#b8d3e5',fontSize:11}}>Published prize information for your selected game. This is separate from historical Auto Pick recommendations.</small><PrizeTierLab game={game} lines={1} draws={1}/></>}
    </div>
+  <AdvancedMathLab key={game} game={game}/>
   {!result&&!running&&<><div style={{...panel,background:'linear-gradient(130deg,#233c53,#192b3d)',borderColor:'#65849e'}}>
    <div style={{fontSize:11,letterSpacing:1.1,color:'#b3d8ef'}}>✦ COMPLETE ANALYSIS & AUTO PICK</div>
    <strong style={{fontSize:19}}>All your lottery tests. One button.</strong>
