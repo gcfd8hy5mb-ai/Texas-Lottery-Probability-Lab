@@ -5,7 +5,8 @@ import {probabilityAtLeast,distribution,simulate,totalOutcomes,atLeastOne,binomi
 type Draw={date:string;nums:number[];bonus?:number};
 type Game={name:string;count:number;max:number;bonusMax?:number;ordered?:boolean};
 type Candidate={nums:number[];bonus?:number;train:number;hold:number;score:number;reasons:string[];stable:number;recent:number;tests:number;method:string};
-type Result={picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number;methodCount:number;math:MathReport;portfolio:{observed:number;controls:number;mean:number;lower:number;upper:number;tail:number;draws:number}};
+type SearchCheckpoint={attempts:number;unique:number;bestDiscovery:number;unseen:number;unseenRate:number;randomExpected:number;changed:number};
+type Result={sizeComparison:SearchCheckpoint[];picks:Candidate[];tested:number;periods:{name:string;wins:number;periods:number;rate:number;expected:number}[];train:number;hold:number;lastDate:string;patterns:string[];threshold:number;expected:number;holdStart:string;discoveryEnd:string;randomHold:number;randomTrials:number;methodCount:number;math:MathReport;portfolio:{observed:number;controls:number;mean:number;lower:number;upper:number;tail:number;draws:number}};
 const files:Record<string,string>={'Lotto Texas':'lotto-texas.json','Powerball':'powerball.json','Mega Millions':'mega-millions.json','Texas Two Step':'texas-two-step.json','Cash Five':'cash-five.json','All or Nothing':'all-or-nothing.json','Pick 3':'pick-3.json','Daily 4':'daily-4.json'};
 const panel:React.CSSProperties={background:'#192b3d',border:'1px solid #354c62',borderRadius:14,padding:14,display:'grid',gap:11};
 const light='#b6d4e8';
@@ -111,6 +112,17 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    // History is sorted into two discovery halves for consistency scoring.
    const requested=g.ordered?Math.pow(10,g.count):Math.min(250000,Math.max(10000,Number(size)||50000));
    const limit=requested;
+   // Nested snapshots mean every smaller search is the identical prefix of the
+   // larger search, with the same training/holdout split and random seed.
+   const checkpoints=g.ordered?[limit]:[10000,25000,50000,100000,150000,250000].filter(n=>n<=limit);
+   const snapshots:{attempts:number;unique:number;picks:Candidate[]}[]=[];
+   const selection=(candidates:Candidate[])=>{
+    const picks:Candidate[]=[];
+    const methodsSeen=new Set<string>();
+    for(const item of candidates){if(picks.length===5)break;if(!methodsSeen.has(item.method)){picks.push(item);methodsSeen.add(item.method);}}
+    for(const item of candidates){if(picks.length===5)break;if(!picks.includes(item))picks.push(item);}
+    return picks;
+   };
    const generationWeights=[undefined,1,2,3,4].map(mode=>mode===undefined?undefined:weightsFor(g,stats,mode));
    // Keep the ordered games exhaustive; larger games use the selected search limit.
    for(let i=0;i<limit;){
@@ -152,6 +164,10 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
       top.sort((a,b)=>b.score-a.score||label(a.nums,g).localeCompare(label(b.nums,g)));
       if(top.length>150)top.pop();
      }
+     // Capture the leaders at each fixed search size without looking at the holdout.
+     if(checkpoints.includes(i)){
+      snapshots.push({attempts:i,unique:seen.size,picks:selection(top)});
+     }
     }
     setProgress(Math.min(100,Math.round(i/limit*100)));
     if(i%1000===0)setStage('Testing '+i.toLocaleString()+' combinations');
@@ -160,15 +176,22 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    // Discovery-only strategy tests and candidate ranking: do not peek at the holdout.
    // The final five are selected only from discovery statistics and ranked BEFORE holdout.
    // Different generation methods increase diversity, while the holdout remains untouched.
-   const winners:Candidate[]=[];
-   const usedMethods=new Set<string>();
-   for(const candidate of top){
-    if(winners.length>=5)break;
-    if(!usedMethods.has(candidate.method)){winners.push(candidate);usedMethods.add(candidate.method);}
-   }
-   for(const candidate of top){
-    if(winners.length>=5)break;
-    if(!winners.includes(candidate))winners.push(candidate);
+   const winners=selection(top);
+   const usedMethods=new Set(winners.map(p=>p.method));
+   // Compare each fixed-size search, on the SAME untouched holdout.
+   // Results are diagnostics only; the final ranking never uses holdout scores.
+   setStage('Comparing search sizes on identical unseen drawings');
+   const sizeComparison:SearchCheckpoint[]=[];
+   let earlier:string[]=[];
+   for(const snapshot of snapshots){
+    const unseen=snapshot.picks.reduce((sum,p)=>sum+rateFor(p.nums,hold,g,threshold),0);
+    const current=snapshot.picks.map(p=>maskKey(p.nums,p.bonus));
+    const changed=earlier.length?current.filter(k=>!earlier.includes(k)).length:0;
+    sizeComparison.push({attempts:snapshot.attempts,unique:snapshot.unique,
+     bestDiscovery:snapshot.picks[0]?.score||0,unseen,
+     unseenRate:unseen/(snapshot.picks.length*hold.length),
+     randomExpected:snapshot.picks.length*hold.length*expected,changed});
+    earlier=current;
    }
    winners.forEach(p=>p.hold=rateFor(p.nums,hold,g,threshold));
    let randomHold=0;
@@ -222,7 +245,7 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
     bonusIncluded:false
    };
    setStage('Finalizing historical comparisons');
-   setResult({picks:winners,tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials,methodCount:usedMethods.size,portfolio,math});
+   setResult({sizeComparison,picks:winners,tested:seen.size,periods:periodScores,train:train.length,hold:hold.length,lastDate:draws[draws.length-1].date,patterns:desc,threshold,expected,holdStart:hold[0].date,discoveryEnd:train[train.length-1].date,randomHold,randomTrials,methodCount:usedMethods.size,portfolio,math});
    setProgress(100);
   }catch(e){setError(String(e));}finally{setRunning(false);}
  }
@@ -259,6 +282,19 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
   </div><div style={panel}><b>3. Run complete analysis</b><button disabled={loading||!!error} onClick={()=>{void run();}} style={{padding:14,border:'none',borderRadius:10,background:'#a9cfee',fontWeight:800,color:'#102235'}}>▶ Run All {game} Tests & Get Recommendations</button>{loading&&<small>Loading official drawings…</small>}{error&&<small style={{color:'#f0b6ae'}}>{error}</small>}</div></>}
   {running&&<div style={panel}><div style={{fontSize:12,color:'#add0e6'}}>✦ RUNNING COMPLETE ANALYSIS</div><h3 style={{margin:0}}>{game}</h3><div style={{height:9,borderRadius:9,background:'#102033',overflow:'hidden'}}><div style={{width:progress+'%',height:'100%',background:'#a9cfee'}}/></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:light}}><span>{stage}</span><b>{progress}%</b></div>{['Number frequencies','Repeating pairs','Gaps and overdue numbers','Odd/even distributions','Ten historical periods','Combination search','Mathematical distributions and simulations','Recommendation ranking'].map((name,i)=><div key={name} style={{color:i<5||progress>i*15?'#cfe0ed':'#7c95aa',fontSize:12}}>{i<5||progress>i*15?'✓':'○'} {name}</div>)}</div>}
   {result&&<><div style={{...panel,borderColor:'#64829a'}}><strong style={{fontSize:17}}>✓ Analysis complete</strong><small style={{color:'#b9d2e3'}}>{game} · {result.tested.toLocaleString()} unique combinations · Through {result.lastDate}</small><button onClick={()=>{setResult(null);setProgress(0);}} style={{background:'#233e54',border:'1px solid #617f97',borderRadius:8,padding:10,color:'#e1f1fa'}}>Run another test / choose game</button></div>
+   <div style={{...panel,borderColor:'#6c93ad',gap:9}}>
+    <b style={{fontSize:14,color:'#d8edf9'}}>Does scanning more combinations make a difference?</b>
+    <small style={{color:'#b6d3e4'}}>Side-by-side comparison using the same historical data, random seed, scoring rules and unseen drawings. Each larger search includes every attempt from the smaller searches.</small>
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,color:'#d8e9f4'}}>
+       <thead><tr style={{color:'#b8d7e9',textAlign:'left',borderBottom:'1px solid #55748c'}}><th style={{padding:'7px 4px'}}>Scanned</th><th style={{padding:'7px 4px'}}>Unseen matches</th><th style={{padding:'7px 4px'}}>Top-5 changed</th></tr></thead>
+       <tbody>{result.sizeComparison.map((s,i)=><tr key={s.attempts} style={{borderBottom:'1px solid #304e64',background:i===result.sizeComparison.length-1?'#23435a':'transparent'}}><td style={{padding:'9px 4px',fontWeight:750}}>{s.attempts.toLocaleString()}</td><td style={{padding:'9px 4px'}}>{s.unseen} <span style={{color:'#abc7da'}}>({percent(s.unseenRate)})</span></td><td style={{padding:'9px 4px'}}>{i===0?'Baseline':s.changed+' / 5'}</td></tr>)}</tbody>
+      </table>
+    </div>
+    {result.sizeComparison.length>1&&<small style={{color:'#d0e4f0'}}>Compared with the smallest search: the largest search's top five had {result.sizeComparison[result.sizeComparison.length-1].unseen-result.sizeComparison[0].unseen>0?'more':result.sizeComparison[result.sizeComparison.length-1].unseen-result.sizeComparison[0].unseen<0?'fewer':'the same number of'} unseen qualifying matches ({result.sizeComparison[0].unseen} → {result.sizeComparison[result.sizeComparison.length-1].unseen}).</small>}
+    <small style={{color:'#adc9dc'}}>Random expectation for each five-ticket group: about {result.sizeComparison[0]?.randomExpected.toFixed(1)} qualifying line-results. More combinations can improve the historical ranking while producing no improvement—or worse performance—on unseen drawings. These checkpoints reuse the same holdout, so apparent gains are descriptive and not independent evidence of a predictive advantage.</small>
+    {result.sizeComparison.length===1&&<small style={{color:'#bdd6e6'}}>To compare multiple search sizes, choose at least 25,000 combinations, or 250,000 to view every checkpoint. Ordered-digit games already cover their entire finite combination space.</small>}
+   </div>
    <div style={{...panel,borderColor:'#7294a9',background:'#142a3d',gap:9}}>
     <b style={{fontSize:14,color:'#d9effb'}}>All-test comparison · top five</b>
     <small style={{color:'#b8d5e8'}}>The ranking compares historical match rate, consistency between two discovery periods, pattern signals, and generation methods. Five candidates are selected before the unseen results are revealed.</small>
