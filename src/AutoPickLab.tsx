@@ -111,12 +111,13 @@ export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{ga
    // History is sorted into two discovery halves for consistency scoring.
    const requested=g.ordered?Math.pow(10,g.count):Math.min(250000,Math.max(10000,Number(size)||50000));
    const limit=requested;
+   const generationWeights=[undefined,1,2,3,4].map(mode=>mode===undefined?undefined:weightsFor(g,stats,mode));
    // Keep the ordered games exhaustive; larger games use the selected search limit.
    for(let i=0;i<limit;){
     const end=Math.min(i+150,limit);
     while(i<end){
      const mode=i%5;
-     const nums=g.ordered?Array.from({length:g.count},(_,p)=>Math.floor(i/Math.pow(10,g.count-1-p))%10):generate(g,next,mode?weightsFor(g,stats,mode):undefined);
+     const nums=g.ordered?Array.from({length:g.count},(_,p)=>Math.floor(i/Math.pow(10,g.count-1-p))%10):generate(g,next,generationWeights[mode]);
      const bonus=g.bonusMax?1+Math.floor(next()*g.bonusMax):undefined;
      const key=maskKey(nums,bonus);
      i++;
