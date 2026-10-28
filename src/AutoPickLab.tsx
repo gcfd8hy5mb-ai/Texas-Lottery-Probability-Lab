@@ -42,8 +42,8 @@ function chance(g:Game,threshold:number){let a=0;const choose=(n:number,k:number
 }
 function label(nums:number[],g:Game){return g.ordered?nums.join(''):nums.join(' · ');}
 function parityCount(nums:number[]){return nums.filter(n=>n%2).length;}
-export default function AutoPickLab({games,onSave}:{games:Game[];onSave:(game:string,nums:number[],bonus?:number)=>void}){
- const [game,setGame]=useState('Lotto Texas'),[window,setWindow]=useState('500'),[size,setSize]=useState('10000');
+export default function AutoPickLab({games,onSave,initialGame='Lotto Texas'}:{games:Game[];onSave:(game:string,nums:number[],bonus?:number)=>void;initialGame?:string}){
+ const [game,setGame]=useState(initialGame),[window,setWindow]=useState('500'),[size,setSize]=useState('10000');
  const [data,setData]=useState<Draw[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const [running,setRunning]=useState(false),[progress,setProgress]=useState(0),[stage,setStage]=useState(''),[result,setResult]=useState<Result|null>(null),[detail,setDetail]=useState<'picks'|'patterns'|'tests'>('picks');
  const g=games.find(v=>v.name===game)!;
