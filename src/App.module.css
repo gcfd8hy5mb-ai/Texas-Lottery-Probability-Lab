@@ -9,3 +9,7 @@
 .homeHeader .submark{font-size:8px;letter-spacing:.19em;color:#b7d0e4;margin-top:5px}
 .homeShell .content{padding:18px 13px 30px;gap:12px}
 @media(max-width:365px){.homeHeader{padding:12px}.homeWordmark{font-size:17px}.homeShell .content{padding:17px 10px 27px}}
+
+/* Independent project identity: plain research graph, no game operator branding. */
+.homeWordmark{font-size:17px;letter-spacing:.015em}
+@media(max-width:365px){.homeWordmark{font-size:15px}}
